@@ -498,6 +498,7 @@ export class SpectrumCanvasRenderer {
   drawLegend() {
     if (!this.options.showLegend) return
     
+    // 频谱图图例
     const legends = []
     legends.push({ color: spectrumColors.spectrum, label: '实时频谱' })
     if (this.maxHoldData) legends.push({ color: spectrumColors.maxHold, label: '最大保持' })
@@ -514,12 +515,57 @@ export class SpectrumCanvasRenderer {
     legends.forEach((legend, i) => {
       const offsetX = i * 100
       
+      // 绘制图例色块（带边框）
       this.ctx.fillStyle = legend.color
-      this.ctx.fillRect(x + offsetX, y, 12, 12)
+      this.ctx.fillRect(x + offsetX, y, 14, 14)
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
+      this.ctx.lineWidth = 1
+      this.ctx.strokeRect(x + offsetX, y, 14, 14)
       
       this.ctx.fillStyle = spectrumColors.text
-      this.ctx.fillText(legend.label, x + offsetX + 18, y)
+      this.ctx.fillText(legend.label, x + offsetX + 20, y + 2)
     })
+    
+    // 瀑布图颜色条图例
+    this.drawWaterfallColorBar()
+  }
+  
+  drawWaterfallColorBar() {
+    const barWidth = 15
+    const barHeight = this.waterfallArea.height
+    const barX = this.waterfallArea.x + this.waterfallArea.width + 10
+    const barY = this.waterfallArea.y
+    
+    // 绘制颜色条背景边框
+    this.ctx.strokeStyle = spectrumColors.axis
+    this.ctx.lineWidth = 1
+    this.ctx.strokeRect(barX, barY, barWidth, barHeight)
+    
+    // 绘制颜色条渐变
+    for (let i = 0; i < barHeight; i++) {
+      const ratio = 1 - i / barHeight
+      const value = this.minLevel + (this.maxLevel - this.minLevel) * ratio
+      const color = this.getWaterfallColor(value)
+      
+      this.ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`
+      this.ctx.fillRect(barX + 1, barY + i, barWidth - 2, 1)
+    }
+    
+    // 绘制颜色条刻度标签
+    this.ctx.fillStyle = spectrumColors.text
+    this.ctx.font = '10px monospace'
+    this.ctx.textAlign = 'left'
+    this.ctx.textBaseline = 'middle'
+    
+    // 最大值标签（顶部）
+    this.ctx.fillText(`${this.maxLevel} dBm`, barX + barWidth + 5, barY + 5)
+    
+    // 中间值标签
+    const midLevel = (this.maxLevel + this.minLevel) / 2
+    this.ctx.fillText(`${midLevel.toFixed(0)} dBm`, barX + barWidth + 5, barY + barHeight / 2)
+    
+    // 最小值标签（底部）
+    this.ctx.fillText(`${this.minLevel} dBm`, barX + barWidth + 5, barY + barHeight - 5)
   }
 
   getFreqAtX(x) {
