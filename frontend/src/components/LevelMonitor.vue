@@ -349,7 +349,9 @@ onMounted(async () => {
  }
  window.addEventListener('resize', resizeCanvas);
  try {
- await wsManager.connect('ws://localhost:3000/ws');
+ const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+ const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+ await wsManager.connect(wsUrl);
  wsManager.send('subscribe', { channel: 'level' });
  wsManager.subscribe('levelData', (data) => {
  if (levelConfig.enabled && data.channel === levelConfig.channel) {

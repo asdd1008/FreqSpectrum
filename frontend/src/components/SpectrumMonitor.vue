@@ -672,7 +672,9 @@ onMounted(async () => {
  startDataLoop();
  window.addEventListener('resize', handleResize);
  try {
- await wsManager.connect('ws://localhost:3000/ws');
+ const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+ const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+ await wsManager.connect(wsUrl);
  wsManager.send('subscribe', { channel: 'spectrum' });
  wsManager.subscribe('spectrumData', (data) => {
  if (worker && isPlaying.value && !isPlaybackMode.value) {
