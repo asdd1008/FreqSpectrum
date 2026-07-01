@@ -1,12 +1,11 @@
 import { WebSocketServer } from 'ws'
 import SpectrumDataGenerator from './dataGenerator.js'
+import { findAvailablePort, savePortConfig } from './utils/portUtils.js'
 
-const PORT = process.env.PORT || 8080
+const DEFAULT_PORT = 8080
 
-const wss = new WebSocketServer({
-  port: PORT,
-  path: '/ws'
-})
+let wss = null
+let actualPort = null
 
 const clients = new Map()
 
@@ -19,7 +18,6 @@ const spectrumGenerator = new SpectrumDataGenerator({
 
 let spectrumInterval = null
 let levelInterval = null
-let isRunning = true
 
 const startSpectrumStream = () => {
   if (spectrumInterval) return
@@ -31,7 +29,7 @@ const startSpectrumStream = () => {
       if (client.readyState === 1 && client.subscriptions?.spectrum) {
         const clientConfig = client.config || {}
         const points = Math.floor((clientConfig.span || 100000000) / (clientConfig.freqResolution || 1000000))
-        const sendData = data.slice(0, points)
+        const sendData = data.slice(0, Math.max(1, points))
         
         client.send(JSON.stringify({
           type: 'spectrumData',
@@ -62,43 +60,6 @@ const startLevelStream = () => {
     })
   }, 100)
 }
-
-wss.on('connection', (ws, req) => {
-  const clientId = Date.now() + Math.random()
-  console.log(`[WS] 新客户端连接: ${clientId}`)
-  
-  ws.clientId = clientId
-  ws.subscriptions = { spectrum: false, level: false }
-  ws.config = {}
-  
-  clients.set(clientId, ws)
-  
-  ws.send(JSON.stringify({
-    type: 'welcome',
-    message: '连接成功',
-    clientId,
-    serverTime: Date.now()
-  }))
-  
-  ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message.toString())
-      handleMessage(ws, data)
-    } catch (e) {
-      console.error('[WS] 消息解析失败:', e.message)
-    }
-  })
-  
-  ws.on('close', () => {
-    console.log(`[WS] 客户端断开: ${clientId}`)
-    clients.delete(clientId)
-  })
-  
-  ws.on('error', (error) => {
-    console.error(`[WS] 客户端错误: ${clientId}`, error.message)
-    clients.delete(clientId)
-  })
-})
 
 const handleMessage = (ws, data) => {
   const { type, ...payload } = data
@@ -194,15 +155,80 @@ const handleSetConfig = (ws, payload) => {
   }))
 }
 
-console.log(`[Server] WebSocket服务器启动在 ws://localhost:${PORT}/ws`)
-console.log(`[Server] 等待客户端连接...`)
+const startServer = async () => {
+  try {
+    actualPort = await findAvailablePort(DEFAULT_PORT)
+    
+    wss = new WebSocketServer({
+      port: actualPort,
+      path: '/ws'
+    })
+    
+    savePortConfig({
+      backendPort: actualPort,
+      frontendPort: 5174,
+      updatedAt: Date.now()
+    })
+    
+    wss.on('connection', (ws, req) => {
+      const clientId = Date.now() + Math.random()
+      console.log(`[WS] 新客户端连接: ${clientId}`)
+      
+      ws.clientId = clientId
+      ws.subscriptions = { spectrum: false, level: false }
+      ws.config = {}
+      
+      clients.set(clientId, ws)
+      
+      ws.send(JSON.stringify({
+        type: 'welcome',
+        message: '连接成功',
+        clientId,
+        serverTime: Date.now(),
+        port: actualPort
+      }))
+      
+      ws.on('message', (message) => {
+        try {
+          const data = JSON.parse(message.toString())
+          handleMessage(ws, data)
+        } catch (e) {
+          console.error('[WS] 消息解析失败:', e.message)
+        }
+      })
+      
+      ws.on('close', () => {
+        console.log(`[WS] 客户端断开: ${clientId}`)
+        clients.delete(clientId)
+      })
+      
+      ws.on('error', (error) => {
+        console.error(`[WS] 客户端错误: ${clientId}`, error.message)
+        clients.delete(clientId)
+      })
+    })
+    
+    console.log(`[Server] WebSocket服务器启动在 ws://localhost:${actualPort}/ws`)
+    console.log(`[Server] 等待客户端连接...`)
+    
+  } catch (error) {
+    console.error('[Server] 启动失败:', error.message)
+    process.exit(1)
+  }
+}
 
 process.on('SIGINT', () => {
   console.log('\n[Server] 正在关闭服务器...')
   if (spectrumInterval) clearInterval(spectrumInterval)
   if (levelInterval) clearInterval(levelInterval)
-  wss.close(() => {
-    console.log('[Server] 服务器已关闭')
+  if (wss) {
+    wss.close(() => {
+      console.log('[Server] 服务器已关闭')
+      process.exit(0)
+    })
+  } else {
     process.exit(0)
-  })
+  }
 })
+
+startServer()

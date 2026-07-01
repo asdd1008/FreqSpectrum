@@ -1,21 +1,69 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
+import fs from 'node:fs'
+import path from 'node:path'
+import net from 'node:net'
 
-export default defineConfig({
-  plugins: [vue()],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    server.once('error', () => resolve(false))
+    server.once('listening', () => {
+      server.close()
+      resolve(true)
+    })
+    server.listen(port, '127.0.0.1')
+  })
+}
+
+async function findAvailablePort(startPort, maxAttempts = 100) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i
+    const available = await isPortAvailable(port)
+    if (available) return port
+  }
+  return startPort + maxAttempts
+}
+
+function getBackendPort() {
+  try {
+    const configPath = path.resolve(__dirname, '../port-config.json')
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      if (config.backendPort) {
+        return config.backendPort
+      }
     }
-  },
-  server: {
-    port: 5174,
-    proxy: {
-      '/ws': {
-        target: 'ws://localhost:8080',
-        ws: true,
-        changeOrigin: true
+  } catch (e) {
+    console.log('No port config found, using default backend port 8080')
+  }
+  return 8080
+}
+
+export default defineConfig(async ({ mode }) => {
+  const frontendPort = await findAvailablePort(5174)
+  const backendPort = getBackendPort()
+  
+  console.log(`[Vite] Frontend port: ${frontendPort}`)
+  console.log(`[Vite] Backend proxy port: ${backendPort}`)
+  
+  return {
+    plugins: [vue()],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url))
+      }
+    },
+    server: {
+      port: frontendPort,
+      strictPort: false,
+      proxy: {
+        '/ws': {
+          target: `ws://localhost:${backendPort}`,
+          ws: true,
+          changeOrigin: true
+        }
       }
     }
   }
