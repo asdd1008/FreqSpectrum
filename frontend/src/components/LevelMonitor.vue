@@ -342,15 +342,18 @@ watch(() => levelConfig.enabled, (enabled) => {
  stopDataLoop();
  }
 });
-onMounted(() => {
+onMounted(async () => {
  resizeCanvas();
  if (levelConfig.enabled) {
  startDataLoop();
  }
  window.addEventListener('resize', resizeCanvas);
  try {
+ await wsManager.connect('ws://localhost:3000/ws');
+ wsManager.send('subscribe', { channel: 'level' });
  wsManager.subscribe('levelData', (data) => {
  if (levelConfig.enabled && data.channel === levelConfig.channel) {
+ stopDataLoop();
  currentLevel.value = data.level;
  if (data.level > currentPeak.value) {
  currentPeak.value = data.level;

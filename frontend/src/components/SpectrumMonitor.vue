@@ -673,8 +673,10 @@ onMounted(async () => {
  window.addEventListener('resize', handleResize);
  try {
  await wsManager.connect('ws://localhost:3000/ws');
+ wsManager.send('subscribe', { channel: 'spectrum' });
  wsManager.subscribe('spectrumData', (data) => {
  if (worker && isPlaying.value && !isPlaybackMode.value) {
+ stopDataLoop();
  const floatData = new Float32Array(data.data);
  worker.postMessage({
  type: 'processSpectrum',
