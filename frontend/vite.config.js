@@ -1,9 +1,11 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 import fs from 'node:fs'
 import path from 'node:path'
 import net from 'node:net'
+
+const DEFAULT_FRONTEND_PORT = 8500
 
 function isPortAvailable(port) {
   return new Promise((resolve) => {
@@ -17,18 +19,21 @@ function isPortAvailable(port) {
   })
 }
 
-async function findAvailablePort(startPort, maxAttempts = 100) {
+async function findAvailablePort(startPort, maxAttempts = 200) {
   for (let i = 0; i < maxAttempts; i++) {
     const port = startPort + i
     const available = await isPortAvailable(port)
     if (available) return port
   }
-  return startPort + maxAttempts
+  throw new Error(`No available port found starting from ${startPort}`)
 }
 
 function getBackendPort() {
   try {
-    const configPath = path.resolve(__dirname, '../port-config.json')
+    const configPath = path.resolve(
+      fileURLToPath(import.meta.url),
+      '../../port-config.json'
+    )
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       if (config.backendPort) {
@@ -36,13 +41,13 @@ function getBackendPort() {
       }
     }
   } catch (e) {
-    console.log('No port config found, using default backend port 8080')
+    console.log('[Vite] No port config found, using default backend port 8080')
   }
   return 8080
 }
 
-export default defineConfig(async ({ mode }) => {
-  const frontendPort = await findAvailablePort(5174)
+export default defineConfig(async () => {
+  const frontendPort = await findAvailablePort(DEFAULT_FRONTEND_PORT)
   const backendPort = getBackendPort()
   
   console.log(`[Vite] Frontend port: ${frontendPort}`)
@@ -57,7 +62,8 @@ export default defineConfig(async ({ mode }) => {
     },
     server: {
       port: frontendPort,
-      strictPort: false,
+      strictPort: true,
+      host: '0.0.0.0',
       proxy: {
         '/ws': {
           target: `ws://localhost:${backendPort}`,
