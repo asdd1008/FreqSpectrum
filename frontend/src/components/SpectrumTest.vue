@@ -1,7 +1,7 @@
 <template>
   <div class="spectrum-test-page">
     <div class="page-header">
-      <h2>新频谱组件测试</h2>
+      <h2>新频谱组件测试 - 优化版</h2>
       <div class="header-info">
         <span>中心频率: {{ formatFreq(config.centerFreq) }}</span>
         <span>带宽: {{ formatFreq(config.span) }}</span>
@@ -12,6 +12,10 @@
         <button @click="resetZoom">重置缩放</button>
         <button @click="clearWaterfall">清空瀑布图</button>
         <button @click="addTestMarker">添加标记</button>
+        <button @click="addRectMarker">添加矩形标记</button>
+        <button @click="toggleMaxHold">{{ config.maxHold ? '关闭最大保持' : '开启最大保持' }}</button>
+        <button @click="toggleMinHold">{{ config.minHold ? '关闭最小保持' : '开启最小保持' }}</button>
+        <button @click="toggleAvgHold">{{ config.avgHold ? '关闭平均' : '开启平均' }}</button>
       </div>
     </div>
     
@@ -20,14 +24,19 @@
         ref="spectrumRef"
         :config="config"
         :markers="markers"
+        :hoverInfo="hoverInfoConfig"
+        :playbackSpeed="1000"
         @ready="handleReady"
         @click="handleClick"
         @doubleClick="handleDoubleClick"
         @markerClick="handleMarkerClick"
         @hover="handleHover"
+        @hoverEnd="handleHoverEnd"
         @zoomChange="handleZoomChange"
         @fallsSelect="handleFallsSelect"
         @playbackFrame="handlePlaybackFrame"
+        @playbackStart="handlePlaybackStart"
+        @playbackStop="handlePlaybackStop"
         @pause="handlePause"
         @play="handlePlay"
       />
@@ -49,12 +58,31 @@
         <label>ZoomY:</label>
         <span>[{{ config.zoomY[0].toFixed(3) }}, {{ config.zoomY[1].toFixed(3) }}]</span>
       </div>
+      <div class="info-item">
+        <label>状态:</label>
+        <span :class="statusClass">{{ statusText }}</span>
+      </div>
+      <div class="info-item">
+        <label>回放进度:</label>
+        <span>{{ playbackFrame + 1 }} / {{ playbackTotal }}</span>
+      </div>
+    </div>
+    
+    <div class="tips-panel">
+      <h4>操作提示:</h4>
+      <ul>
+        <li>鼠标滚轮: X轴频率缩放 (按住Shift为Y轴电平缩放)</li>
+        <li>鼠标左键拖拽: 平移视图</li>
+        <li>瀑布图右键拖拽: 框选区域进行回放</li>
+        <li>双击: 添加点标记</li>
+        <li>点击标记: 触发标记点击事件</li>
+      </ul>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import Spectrum from './Spectrum/spectrum.vue'
 
 const spectrumRef = ref(null)
@@ -78,9 +106,36 @@ const markers = ref([
   { id: 2, freq: 1020000000, color: '#4dd2ff' }
 ])
 
+const hoverInfoConfig = reactive({
+  visible: true,
+  fields: ['centerFreq', 'accessFreq', 'bandwidth', 'maxLevel'],
+  customFields: [
+    { label: '状态', value: '正常' }
+  ],
+  menuButtons: [
+    { label: '标记', action: 'mark' },
+    { label: '回放', action: 'playback' }
+  ]
+})
+
 const hoverInfo = ref(null)
 const isPaused = ref(false)
+const playbackFrame = ref(0)
+const playbackTotal = ref(0)
+const isPlayback = ref(false)
 let dataTimer = null
+
+const statusText = computed(() => {
+  if (isPlayback.value) return '回放中'
+  if (isPaused.value) return '已暂停'
+  return '播放中'
+})
+
+const statusClass = computed(() => {
+  if (isPlayback.value) return 'status-playback'
+  if (isPaused.value) return 'status-paused'
+  return 'status-playing'
+})
 
 function handleReady(data) {
   console.log('Spectrum ready:', data)
@@ -98,15 +153,20 @@ function handleDoubleClick(data) {
     freq: data.freq,
     color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')
   }
-  spectrumRef.value?.addMarker(newMarker)
+  markers.value.push(newMarker)
 }
 
 function handleMarkerClick(data) {
   console.log('MarkerClick:', data)
+  alert(`点击了标记 ${data.markerId}`)
 }
 
 function handleHover(data) {
   hoverInfo.value = data
+}
+
+function handleHoverEnd() {
+  hoverInfo.value = null
 }
 
 function handleZoomChange(data) {
@@ -120,6 +180,21 @@ function handleFallsSelect(data) {
 }
 
 function handlePlaybackFrame(data) {
+  playbackFrame.value = data.frame
+  playbackTotal.value = data.total
+}
+
+function handlePlaybackStart(data) {
+  isPlayback.value = true
+  playbackTotal.value = data.total
+  console.log('Playback start:', data)
+}
+
+function handlePlaybackStop() {
+  isPlayback.value = false
+  playbackFrame.value = 0
+  playbackTotal.value = 0
+  console.log('Playback stop')
 }
 
 function handlePause() {
@@ -128,6 +203,7 @@ function handlePause() {
 
 function handlePlay() {
   isPaused.value = false
+  isPlayback.value = false
 }
 
 function togglePause() {
@@ -153,29 +229,55 @@ function addTestMarker() {
     freq,
     color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')
   }
-  spectrumRef.value?.addMarker(newMarker)
+  markers.value.push(newMarker)
+}
+
+function addRectMarker() {
+  const startFreq = config.centerFreq + (Math.random() - 0.5) * config.span * 0.6
+  const endFreq = startFreq + config.span * 0.1 + Math.random() * config.span * 0.1
+  const newMarker = {
+    id: Date.now(),
+    startFreq,
+    endFreq,
+    startLevel: -60,
+    endLevel: -20,
+    color: '#ff9800'
+  }
+  markers.value.push(newMarker)
+}
+
+function toggleMaxHold() {
+  config.maxHold = !config.maxHold
+}
+
+function toggleMinHold() {
+  config.minHold = !config.minHold
+}
+
+function toggleAvgHold() {
+  config.avgHold = !config.avgHold
 }
 
 function generateSpectrumData() {
-  const points = 1000
+  const points = 10000
   const data = new Float32Array(points)
   
   for (let i = 0; i < points; i++) {
     const ratio = i / points
     let level = -80 + Math.random() * 10
     
-    const peakFreqs = [0.2, 0.35, 0.5, 0.65, 0.8]
+    const peakFreqs = [0.15, 0.25, 0.35, 0.5, 0.6, 0.7, 0.85]
     peakFreqs.forEach(pf => {
       const dist = Math.abs(ratio - pf)
-      if (dist < 0.05) {
-        const peakLevel = -10 + Math.random() * 5
-        const falloff = 1 - dist / 0.05
+      if (dist < 0.03) {
+        const peakLevel = -15 + Math.random() * 8
+        const falloff = 1 - dist / 0.03
         level = Math.max(level, peakLevel * falloff + -80 * (1 - falloff))
       }
     })
     
-    const wideBand = Math.sin(ratio * Math.PI * 3) * 20 - 30
-    level = Math.max(level, wideBand + Math.random() * 5)
+    const wideBand = Math.sin(ratio * Math.PI * 4) * 15 - 40
+    level = Math.max(level, wideBand + Math.random() * 8)
     
     data[i] = level
   }
@@ -187,7 +289,7 @@ function startDataSimulation() {
   if (dataTimer) return
   
   dataTimer = setInterval(() => {
-    if (isPaused.value) return
+    if (isPaused.value || isPlayback.value) return
     
     const data = generateSpectrumData()
     spectrumRef.value?.addData(data)
@@ -237,6 +339,8 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(100, 150, 200, 0.3);
   border-radius: 4px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .page-header h2 {
@@ -255,6 +359,7 @@ onBeforeUnmount(() => {
 .header-buttons {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .header-buttons button {
@@ -265,6 +370,7 @@ onBeforeUnmount(() => {
   color: #cce0ff;
   cursor: pointer;
   font-size: 12px;
+  transition: all 0.2s;
 }
 
 .header-buttons button:hover {
@@ -273,7 +379,7 @@ onBeforeUnmount(() => {
 
 .spectrum-container {
   flex: 1;
-  min-height: 500px;
+  min-height: 400px;
   border: 1px solid rgba(100, 150, 200, 0.3);
   border-radius: 4px;
   overflow: hidden;
@@ -287,6 +393,7 @@ onBeforeUnmount(() => {
   background: rgba(0, 50, 100, 0.2);
   border-radius: 4px;
   font-size: 12px;
+  flex-wrap: wrap;
 }
 
 .info-item {
@@ -302,5 +409,39 @@ onBeforeUnmount(() => {
 .info-item span {
   color: #cce0ff;
   font-family: monospace;
+}
+
+.status-playing {
+  color: #00ff66 !important;
+}
+
+.status-paused {
+  color: #ffcc00 !important;
+}
+
+.status-playback {
+  color: #ff6666 !important;
+}
+
+.tips-panel {
+  margin-top: 10px;
+  padding: 10px 15px;
+  background: rgba(0, 30, 60, 0.3);
+  border: 1px solid rgba(100, 150, 200, 0.2);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.tips-panel h4 {
+  margin: 0 0 8px 0;
+  color: #66b3ff;
+  font-size: 13px;
+}
+
+.tips-panel ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #99c2ff;
+  line-height: 1.8;
 }
 </style>

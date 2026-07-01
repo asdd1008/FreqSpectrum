@@ -9,7 +9,7 @@ self.onmessage = function(e) {
 }
 
 function sample({ spectrum, targetWidth, zoomX }) {
-  if (!spectrum || spectrum.length === 0) {
+  if (!spectrum || spectrum.length === 0 || targetWidth <= 0) {
     self.postMessage({ type: 'sampled', data: { sampled: new Float32Array() } })
     return
   }
@@ -17,9 +17,16 @@ function sample({ spectrum, targetWidth, zoomX }) {
   const zoomStart = zoomX ? zoomX[0] : 0
   const zoomEnd = zoomX ? zoomX[1] : 1
   
-  const startIdx = Math.floor(zoomStart * spectrum.length)
-  const endIdx = Math.ceil(zoomEnd * spectrum.length)
-  const visibleData = spectrum.slice(startIdx, endIdx)
+  const z0 = Math.max(0, Math.min(1, zoomStart))
+  const z1 = Math.max(0, Math.min(1, zoomEnd))
+  const startIdx = Math.floor(Math.min(z0, z1) * spectrum.length)
+  const endIdx = Math.ceil(Math.max(z0, z1) * spectrum.length)
+  const visibleData = spectrum.slice(Math.max(0, startIdx), Math.min(spectrum.length, endIdx))
+  
+  if (visibleData.length <= 0) {
+    self.postMessage({ type: 'sampled', data: { sampled: new Float32Array() } })
+    return
+  }
   
   if (visibleData.length <= targetWidth) {
     self.postMessage({ 
