@@ -48,17 +48,18 @@ export class SpectrumCanvasRenderer {
 
   calculateAreas() {
     const { padding, waterfallHeight } = this.options
+    const axisLabelHeight = 25
     
     this.plotArea = {
       x: padding.left,
       y: padding.top,
       width: this.width - padding.left - padding.right,
-      height: this.height - padding.top - padding.bottom - waterfallHeight - 10
+      height: this.height - padding.top - padding.bottom - waterfallHeight - axisLabelHeight * 2
     }
     
     this.waterfallArea = {
       x: padding.left,
-      y: this.height - padding.bottom - waterfallHeight,
+      y: this.height - padding.bottom - waterfallHeight - axisLabelHeight,
       width: this.width - padding.left - padding.right,
       height: waterfallHeight
     }
