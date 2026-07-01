@@ -1,5 +1,5 @@
 const DEFAULT_CONFIG = {
-  padding: { top: 30, right: 80, bottom: 30, left: 60 },
+  padding: { top: 10, right: 10, bottom: 10, left: 60 },
   waterfallHeight: 200,
   refLevel: 0,
   minLevel: -100,
@@ -103,22 +103,40 @@ export class Spectrum {
   _initLayout() {
     const { padding, waterfallHeight, waterfallVisible } = this.config
     
-    const freqHeight = waterfallVisible
-      ? this.height - padding.top - padding.bottom - waterfallHeight - 25
-      : this.height - padding.top - padding.bottom
+    const legendHeight = 24
+    const xLabelHeight = 20
+    const gap = 10
+    const colorBarWidth = 80
+    
+    const plotTop = padding.top + legendHeight
+    const availableHeight = this.height - padding.top - padding.bottom
+    const totalExtraHeight = legendHeight + xLabelHeight + (waterfallVisible ? gap + waterfallHeight + xLabelHeight : 0)
+    const freqHeight = Math.max(50, availableHeight - totalExtraHeight)
+    
+    const plotWidth = this.width - padding.left - padding.right - colorBarWidth
     
     this.plotArea = {
       x: padding.left,
-      y: padding.top,
-      width: this.width - padding.left - padding.right,
+      y: plotTop,
+      width: plotWidth,
       height: freqHeight
     }
     
+    const waterfallTop = plotTop + freqHeight + xLabelHeight + gap
+    
     this.waterfallArea = {
       x: padding.left,
-      y: padding.top + freqHeight + 25,
-      width: this.width - padding.left - padding.right,
+      y: waterfallTop,
+      width: plotWidth,
       height: waterfallVisible ? waterfallHeight : 0
+    }
+    
+    this._layout = {
+      legendHeight,
+      xLabelHeight,
+      gap,
+      colorBarWidth,
+      freqDivHeight: waterfallTop + (waterfallVisible ? 0 : xLabelHeight)
     }
     
     const freqDiv = document.createElement('div')
@@ -127,40 +145,42 @@ export class Spectrum {
       position: absolute;
       left: 0; top: 0;
       width: 100%;
-      height: ${this.waterfallArea.y}px;
+      height: ${waterfallTop + (waterfallVisible ? 0 : xLabelHeight)}px;
     `
     
     const rainDiv = document.createElement('div')
     rainDiv.className = 'rain-div'
     rainDiv.style.cssText = `
       position: absolute;
-      left: 0; top: ${this.waterfallArea.y}px;
+      left: 0; top: ${waterfallTop}px;
       width: 100%;
-      height: ${this.waterfallArea.height}px;
+      height: ${waterfallVisible ? waterfallHeight + xLabelHeight : 0}px;
     `
     
-    const freqCanvasHeight = this.waterfallArea.y
-    const rainCanvasHeight = this.waterfallArea.height
+    const freqCanvasHeight = waterfallTop + (waterfallVisible ? 0 : xLabelHeight)
+    const rainCanvasHeight = waterfallVisible ? waterfallHeight + xLabelHeight : 0
     
     this.layers.freq = {
       baseLayer: this._createCanvas('base-layer', freqDiv, this.width, freqCanvasHeight),
       lineLayer: this._createCanvas('line-layer', freqDiv, this.width, freqCanvasHeight),
-      activeLayer: this._createCanvas('active-layer', freqDiv, this.width, freqCanvasHeight)
+      activeLayer: this._createCanvas('active-layer', freqDiv, this.width, freqCanvasHeight),
+      legendCanvas: this._createCanvas('legend-canvas', freqDiv, this.width, freqCanvasHeight)
     }
     
     this.layers.rain = {
       rainCanvas: this._createCanvas('rain-canvas', rainDiv, this.width, rainCanvasHeight),
       rainHandCanvas: this._createCanvas('rain-hand-canvas', rainDiv, this.width, rainCanvasHeight),
-      legendCanvas: this._createCanvas('legend-canvas', rainDiv, this.width, rainCanvasHeight)
+      rainLegendCanvas: this._createCanvas('rain-legend-canvas', rainDiv, this.width, rainCanvasHeight)
     }
     
     this.contexts = {
       base: this.layers.freq.baseLayer.getContext('2d'),
       line: this.layers.freq.lineLayer.getContext('2d'),
       active: this.layers.freq.activeLayer.getContext('2d'),
+      legend: this.layers.freq.legendCanvas.getContext('2d'),
       rain: this.layers.rain.rainCanvas.getContext('2d'),
       rainHand: this.layers.rain.rainHandCanvas.getContext('2d'),
-      legend: this.layers.rain.legendCanvas.getContext('2d')
+      rainLegend: this.layers.rain.rainLegendCanvas.getContext('2d')
     }
     
     this.freqDiv = freqDiv
@@ -185,11 +205,8 @@ export class Spectrum {
     return canvas
   }
   
-  _resizeAllCanvases(w, h) {
-    const freqH = this.waterfallArea.y
-    const rainH = this.waterfallArea.height
-    
-    const freqCanvases = [this.layers.freq.baseLayer, this.layers.freq.lineLayer, this.layers.freq.activeLayer]
+  _resizeAllCanvases(w, freqH, rainH) {
+    const freqCanvases = [this.layers.freq.baseLayer, this.layers.freq.lineLayer, this.layers.freq.activeLayer, this.layers.freq.legendCanvas]
     freqCanvases.forEach(c => {
       c.width = w * this.dpr
       c.height = freqH * this.dpr
@@ -197,7 +214,7 @@ export class Spectrum {
       c.style.height = freqH + 'px'
     })
     
-    const rainCanvases = [this.layers.rain.rainCanvas, this.layers.rain.rainHandCanvas, this.layers.rain.legendCanvas]
+    const rainCanvases = [this.layers.rain.rainCanvas, this.layers.rain.rainHandCanvas, this.layers.rain.rainLegendCanvas]
     rainCanvases.forEach(c => {
       c.width = w * this.dpr
       c.height = rainH * this.dpr
@@ -840,8 +857,9 @@ export class Spectrum {
   _drawBaseLayer() {
     const ctx = this.contexts.base
     const { plotArea } = this
+    const freqCanvasHeight = this.waterfallArea.y + (this.config.waterfallVisible ? 0 : this._layout.xLabelHeight)
     
-    ctx.clearRect(0, 0, this.width * this.dpr, this.waterfallArea.y * this.dpr)
+    ctx.clearRect(0, 0, this.width * this.dpr, freqCanvasHeight * this.dpr)
     ctx.save()
     ctx.scale(this.dpr, this.dpr)
     
@@ -849,8 +867,8 @@ export class Spectrum {
       ctx.strokeStyle = 'rgba(100, 150, 200, 0.2)'
       ctx.lineWidth = 1
       
-      const gridCountX = 10
-      const gridCountY = 10
+      const gridCountX = 5
+      const gridCountY = 5
       
       for (let i = 0; i <= gridCountX; i++) {
         const x = plotArea.x + (plotArea.width / gridCountX) * i
@@ -877,7 +895,7 @@ export class Spectrum {
     ctx.textAlign = 'right'
     ctx.textBaseline = 'middle'
     
-    const gridCountY = 10
+    const gridCountY = 5
     for (let i = 0; i <= gridCountY; i++) {
       const y = plotArea.y + (plotArea.height / gridCountY) * i
       const level = this.getLevelForY(y)
@@ -887,11 +905,11 @@ export class Spectrum {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
     
-    const gridCountX = 10
+    const gridCountX = 5
     for (let i = 0; i <= gridCountX; i++) {
       const x = plotArea.x + (plotArea.width / gridCountX) * i
       const freq = this.getFreqForX(x)
-      ctx.fillText(this._formatFreq(freq), x, plotArea.y + plotArea.height + 5)
+      ctx.fillText(this._formatFreq(freq), x, plotArea.y + plotArea.height + 3)
     }
     
     ctx.restore()
@@ -936,8 +954,8 @@ export class Spectrum {
       }
     }
     
-    ctx.clearRect(0, 0, w, h)
-    ctx.putImageData(imageData, 0, 0)
+    ctx.clearRect(0, 0, this.width * this.dpr, waterfallArea.height * this.dpr)
+    ctx.putImageData(imageData, waterfallArea.x * this.dpr, 0)
   }
   
   _getWaterfallColor(value) {
@@ -974,47 +992,48 @@ export class Spectrum {
   
   _drawLegend() {
     const ctx = this.contexts.base
-    const { plotArea } = this
+    const { plotArea, config } = this
     
-    if (!this.config.showLegend) return
+    if (!config.showLegend) return
     
     ctx.save()
     ctx.scale(this.dpr, this.dpr)
     
     const legends = []
     legends.push({ color: '#00ff66', label: '实时频谱' })
-    if (this.config.maxHold) legends.push({ color: '#ff4d4d', label: '最大保持' })
-    if (this.config.minHold) legends.push({ color: '#4dd2ff', label: '最小保持' })
-    if (this.config.avgHold) legends.push({ color: '#ffff4d', label: '平均' })
+    if (config.maxHold) legends.push({ color: '#ff4d4d', label: '最大保持' })
+    if (config.minHold) legends.push({ color: '#4dd2ff', label: '最小保持' })
+    if (config.avgHold) legends.push({ color: '#ffff4d', label: '平均' })
     
-    let x = plotArea.x + 10
-    const y = plotArea.y + 10
+    const legendY = config.padding.top + 4
     
-    ctx.font = '11px sans-serif'
+    ctx.font = '12px sans-serif'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
     
-    legends.forEach((legend, i) => {
-      const offsetX = i * 100
-      
+    let currentX = plotArea.x
+    legends.forEach((legend) => {
       ctx.fillStyle = legend.color
-      ctx.fillRect(x + offsetX, y, 14, 14)
+      ctx.fillRect(currentX, legendY, 14, 14)
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
       ctx.lineWidth = 1
-      ctx.strokeRect(x + offsetX, y, 14, 14)
+      ctx.strokeRect(currentX, legendY, 14, 14)
       
       ctx.fillStyle = '#cce0ff'
-      ctx.fillText(legend.label, x + offsetX + 20, y + 2)
+      ctx.fillText(legend.label, currentX + 20, legendY + 1)
+      
+      currentX += 20 + ctx.measureText(legend.label).width + 20
     })
     
     ctx.restore()
   }
   
   _drawRainLegend() {
-    const ctx = this.contexts.legend
+    const ctx = this.contexts.rainLegend
     const { waterfallArea } = this
+    const rainCanvasHeight = waterfallArea.height + this._layout.xLabelHeight
     
-    ctx.clearRect(0, 0, this.width * this.dpr, waterfallArea.height * this.dpr)
+    ctx.clearRect(0, 0, this.width * this.dpr, rainCanvasHeight * this.dpr)
     ctx.save()
     ctx.scale(this.dpr, this.dpr)
     
@@ -1061,14 +1080,15 @@ export class Spectrum {
     ctx.fillText('时间', 0, 0)
     ctx.restore()
     
-    const gridCountX = 10
+    const gridCountX = 5
     ctx.font = '10px monospace'
-    ctx.textBaseline = 'bottom'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'top'
     
     for (let i = 0; i <= gridCountX; i++) {
       const x = waterfallArea.x + (waterfallArea.width / gridCountX) * i
       const freq = this.getFreqForX(x)
-      ctx.fillText(this._formatFreq(freq), x, waterfallArea.height - 2)
+      ctx.fillText(this._formatFreq(freq), x, waterfallArea.height + 2)
     }
     
     ctx.restore()
@@ -1077,8 +1097,9 @@ export class Spectrum {
   _drawActiveLayer() {
     const ctx = this.contexts.active
     const { plotArea } = this
+    const freqCanvasHeight = this.waterfallArea.y + (this.config.waterfallVisible ? 0 : this._layout.xLabelHeight)
     
-    ctx.clearRect(0, 0, this.width * this.dpr, this.waterfallArea.y * this.dpr)
+    ctx.clearRect(0, 0, this.width * this.dpr, freqCanvasHeight * this.dpr)
     ctx.save()
     ctx.scale(this.dpr, this.dpr)
     
@@ -1261,8 +1282,9 @@ export class Spectrum {
     const { waterfallArea } = this
     const w = waterfallArea.width
     const h = waterfallArea.height
+    const rainCanvasHeight = h + this._layout.xLabelHeight
     
-    ctx.clearRect(0, 0, w * this.dpr, h * this.dpr)
+    ctx.clearRect(0, 0, this.width * this.dpr, rainCanvasHeight * this.dpr)
     ctx.save()
     ctx.scale(this.dpr, this.dpr)
     
@@ -1484,6 +1506,7 @@ export class Spectrum {
     this.config.zoomX = [0, 1]
     this.config.zoomY = [0, 1]
     this.render()
+    this._events.emit('zoom', { zoomX: [...this.config.zoomX], zoomY: [...this.config.zoomY] })
   }
   
   pause() {
@@ -1618,33 +1641,54 @@ export class Spectrum {
     
     const { padding, waterfallHeight, waterfallVisible } = this.config
     
-    const freqHeight = waterfallVisible
-      ? this.height - padding.top - padding.bottom - waterfallHeight - 25
-      : this.height - padding.top - padding.bottom
+    const legendHeight = 24
+    const xLabelHeight = 20
+    const gap = 10
+    const colorBarWidth = 80
+    
+    const plotTop = padding.top + legendHeight
+    const availableHeight = this.height - padding.top - padding.bottom
+    const totalExtraHeight = legendHeight + xLabelHeight + (waterfallVisible ? gap + waterfallHeight + xLabelHeight : 0)
+    const freqHeight = Math.max(50, availableHeight - totalExtraHeight)
+    
+    const plotWidth = this.width - padding.left - padding.right - colorBarWidth
     
     this.plotArea = {
       x: padding.left,
-      y: padding.top,
-      width: this.width - padding.left - padding.right,
+      y: plotTop,
+      width: plotWidth,
       height: freqHeight
     }
     
+    const waterfallTop = plotTop + freqHeight + xLabelHeight + gap
+    
     this.waterfallArea = {
       x: padding.left,
-      y: padding.top + freqHeight + 25,
-      width: this.width - padding.left - padding.right,
+      y: waterfallTop,
+      width: plotWidth,
       height: waterfallVisible ? waterfallHeight : 0
     }
     
-    if (this.freqDiv) {
-      this.freqDiv.style.height = this.waterfallArea.y + 'px'
-    }
-    if (this.rainDiv) {
-      this.rainDiv.style.top = this.waterfallArea.y + 'px'
-      this.rainDiv.style.height = this.waterfallArea.height + 'px'
+    this._layout = {
+      legendHeight,
+      xLabelHeight,
+      gap,
+      colorBarWidth,
+      freqDivHeight: waterfallTop + (waterfallVisible ? 0 : xLabelHeight)
     }
     
-    this._resizeAllCanvases(this.width, this.waterfallArea.y)
+    const freqCanvasHeight = waterfallTop + (waterfallVisible ? 0 : xLabelHeight)
+    const rainCanvasHeight = waterfallVisible ? waterfallHeight + xLabelHeight : 0
+    
+    if (this.freqDiv) {
+      this.freqDiv.style.height = freqCanvasHeight + 'px'
+    }
+    if (this.rainDiv) {
+      this.rainDiv.style.top = waterfallTop + 'px'
+      this.rainDiv.style.height = rainCanvasHeight + 'px'
+    }
+    
+    this._resizeAllCanvases(this.width, freqCanvasHeight, rainCanvasHeight)
     
     this.render()
     this._events.emit('resize', { width: this.width, height: this.height })
