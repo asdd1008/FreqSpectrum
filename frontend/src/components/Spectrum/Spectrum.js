@@ -1,6 +1,3 @@
-import { SpectrumWorker } from './workers/SpectrumWorker.js'
-import { SampleWorker } from './workers/SampleWorker.js'
-
 const DEFAULT_CONFIG = {
   padding: { top: 30, right: 80, bottom: 30, left: 60 },
   waterfallHeight: 200,
@@ -78,7 +75,8 @@ export class Spectrum {
     this.initLayout()
     this.initWorkers()
     this.initEvents()
-    this.initGL()
+    // WebGL 渲染暂时禁用，使用 Canvas 2D
+    // this.initGL()
   }
   
   initLayout() {
@@ -144,7 +142,7 @@ export class Spectrum {
     
     this.contexts = {
       base: this.layers.freq.baseLayer.getContext('2d'),
-      line: this.layers.freq.lineLayer.getContext('webgl') || this.layers.freq.lineLayer.getContext('experimental-webgl'),
+      line: this.layers.freq.lineLayer.getContext('2d'),
       active: this.layers.freq.activeLayer.getContext('2d'),
       rain: this.layers.rain.rainCanvas.getContext('2d'),
       rainHand: this.layers.rain.rainHandCanvas.getContext('2d'),
@@ -282,24 +280,31 @@ export class Spectrum {
   }
   
   initWorkers() {
-    this.spectrumWorker = new SpectrumWorker()
-    this.sampleWorker = new SampleWorker()
-    
-    this.spectrumWorker.onmessage = (e) => {
-      const { type, data } = e.data
-      if (type === 'holdLines') {
-        this.maxHoldData = data.maxHold
-        this.minHoldData = data.minHold
-        this.avgData = data.avg
-        this._drawHoldLines()
+    try {
+      this.spectrumWorker = new Worker(new URL('./workers/SpectrumWorker.js', import.meta.url), { type: 'module' })
+      this.sampleWorker = new Worker(new URL('./workers/SampleWorker.js', import.meta.url), { type: 'module' })
+      
+      this.spectrumWorker.onmessage = (e) => {
+        const { type, data } = e.data
+        if (type === 'holdLines') {
+          this.maxHoldData = data.maxHold
+          this.minHoldData = data.minHold
+          this.avgData = data.avg
+          this._drawHoldLines()
+        }
       }
-    }
-    
-    this.sampleWorker.onmessage = (e) => {
-      const { type, data } = e.data
-      if (type === 'sampled') {
-        this._drawSpectrumLine(data.sampled)
+      
+      this.sampleWorker.onmessage = (e) => {
+        const { type, data } = e.data
+        if (type === 'sampled') {
+          this._drawSpectrumLine(data.sampled)
+        }
       }
+      
+      this._workersReady = true
+    } catch (e) {
+      console.warn('WebWorker initialization failed, falling back to main thread:', e)
+      this._workersReady = false
     }
   }
   
@@ -577,7 +582,6 @@ export class Spectrum {
   
   resize() {
     this.initLayout()
-    this.initGL()
     this.render()
     this._emit('resize', { width: this.width, height: this.height })
   }
@@ -613,15 +617,7 @@ export class Spectrum {
     }
     
     if (this.config.maxHold || this.config.minHold || this.config.avgHold) {
-      this.spectrumWorker.postMessage({
-        type: 'updateHold',
-        data: {
-          spectrum: data,
-          maxHold: this.config.maxHold,
-          minHold: this.config.minHold,
-          avgHold: this.config.avgHold
-        }
-      })
+      this._updateHoldLines(data)
     }
     
     this._updateAxis()
@@ -711,78 +707,62 @@ export class Spectrum {
     ctx.restore()
   }
   
+  _updateHoldLines(spectrum) {
+    if (!spectrum || spectrum.length === 0) return
+    
+    if (!this.maxHoldData || this.maxHoldData.length !== spectrum.length) {
+      this.maxHoldData = new Float32Array(spectrum)
+      this.minHoldData = new Float32Array(spectrum)
+      this.avgData = new Float32Array(spectrum)
+      this._avgCount = 1
+      return
+    }
+    
+    if (this.config.maxHold) {
+      for (let i = 0; i < spectrum.length; i++) {
+        if (spectrum[i] > this.maxHoldData[i]) {
+          this.maxHoldData[i] = spectrum[i]
+        }
+      }
+    }
+    
+    if (this.config.minHold) {
+      for (let i = 0; i < spectrum.length; i++) {
+        if (spectrum[i] < this.minHoldData[i]) {
+          this.minHoldData[i] = spectrum[i]
+        }
+      }
+    }
+    
+    if (this.config.avgHold) {
+      this._avgCount = (this._avgCount || 1) + 1
+      const alpha = 1 / this._avgCount
+      for (let i = 0; i < spectrum.length; i++) {
+        this.avgData[i] = this.avgData[i] * (1 - alpha) + spectrum[i] * alpha
+      }
+    }
+    
+    this._drawHoldLines()
+  }
+  
   _drawSpectrum() {
     if (!this.spectrumData || this.spectrumData.length === 0) return
     
     const targetWidth = Math.floor(this.plotArea.width)
-    
-    this.sampleWorker.postMessage({
-      type: 'sample',
-      data: {
-        spectrum: this.spectrumData,
-        targetWidth,
-        zoomX: this.config.zoomX
-      }
-    })
+    const sampled = this._quickSample(this._getVisibleData(), targetWidth)
+    this._drawSpectrumLine(sampled)
+  }
+  
+  _getVisibleData() {
+    const data = this.spectrumData
+    const [z0, z1] = this.config.zoomX
+    const start = Math.floor(z0 * data.length)
+    const end = Math.ceil(z1 * data.length)
+    return data.slice(start, end)
   }
   
   _drawSpectrumLine(sampledData) {
-    const gl = this.gl
-    
-    if (!gl || this._useCanvasFallback) {
-      this._drawSpectrumCanvas(sampledData)
-      return
-    }
-    
-    const { plotArea, config } = this
-    const { zoomY } = config
-    
-    const minLevel = config.refLevel - (config.refLevel - config.minLevel) * zoomY[1]
-    const maxLevel = config.refLevel - (config.refLevel - config.minLevel) * zoomY[0]
-    
-    gl.clearColor(0.0, 0.0, 0.0, 0.0)
-    gl.clear(gl.COLOR_BUFFER_BIT)
-    
-    const program = this.spectrumProgram
-    gl.useProgram(program)
-    
-    const positionLocation = gl.getAttribLocation(program, 'a_position')
-    const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')
-    const minLevelLocation = gl.getUniformLocation(program, 'u_minLevel')
-    const maxLevelLocation = gl.getUniformLocation(program, 'u_maxLevel')
-    const plotXLocation = gl.getUniformLocation(program, 'u_plotX')
-    const plotYLocation = gl.getUniformLocation(program, 'u_plotY')
-    const plotWidthLocation = gl.getUniformLocation(program, 'u_plotWidth')
-    const plotHeightLocation = gl.getUniformLocation(program, 'u_plotHeight')
-    const colorLocation = gl.getUniformLocation(program, 'u_color')
-    
-    gl.uniform2f(resolutionLocation, this.width, this.waterfallArea.y)
-    gl.uniform1f(minLevelLocation, minLevel)
-    gl.uniform1f(maxLevelLocation, maxLevel)
-    gl.uniform1f(plotXLocation, plotArea.x)
-    gl.uniform1f(plotYLocation, plotArea.y)
-    gl.uniform1f(plotWidthLocation, plotArea.width)
-    gl.uniform1f(plotHeightLocation, plotArea.height)
-    
-    const points = sampledData.length
-    const vertices = new Float32Array(points * 2)
-    
-    for (let i = 0; i < points; i++) {
-      vertices[i * 2] = i / Math.max(1, points - 1)
-      vertices[i * 2 + 1] = sampledData[i]
-    }
-    
-    const buffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW)
-    
-    gl.enableVertexAttribArray(positionLocation)
-    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
-    
-    gl.uniform4f(colorLocation, 0.0, 1.0, 0.4, 1.0)
-    gl.drawArrays(gl.LINE_STRIP, 0, points)
-    
-    gl.deleteBuffer(buffer)
+    this._drawSpectrumCanvas(sampledData)
   }
   
   _drawSpectrumCanvas(sampledData) {
@@ -820,74 +800,57 @@ export class Spectrum {
   }
   
   _drawHoldLines() {
-    if (!this.gl) return
-    if (this._useCanvasFallback) return
-    
-    const gl = this.gl
+    const ctx = this.contexts.line
     const { plotArea, config } = this
     const { zoomY } = config
     
     const minLevel = config.refLevel - (config.refLevel - config.minLevel) * zoomY[1]
     const maxLevel = config.refLevel - (config.refLevel - config.minLevel) * zoomY[0]
     
-    const program = this.spectrumProgram
-    gl.useProgram(program)
+    ctx.save()
+    ctx.scale(this.dpr, this.dpr)
     
-    const positionLocation = gl.getAttribLocation(program, 'a_position')
-    const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')
-    const minLevelLocation = gl.getUniformLocation(program, 'u_minLevel')
-    const maxLevelLocation = gl.getUniformLocation(program, 'u_maxLevel')
-    const plotXLocation = gl.getUniformLocation(program, 'u_plotX')
-    const plotYLocation = gl.getUniformLocation(program, 'u_plotY')
-    const plotWidthLocation = gl.getUniformLocation(program, 'u_plotWidth')
-    const plotHeightLocation = gl.getUniformLocation(program, 'u_plotHeight')
-    const colorLocation = gl.getUniformLocation(program, 'u_color')
-    
-    gl.uniform2f(resolutionLocation, this.width, this.waterfallArea.y)
-    gl.uniform1f(minLevelLocation, minLevel)
-    gl.uniform1f(maxLevelLocation, maxLevel)
-    gl.uniform1f(plotXLocation, plotArea.x)
-    gl.uniform1f(plotYLocation, plotArea.y)
-    gl.uniform1f(plotWidthLocation, plotArea.width)
-    gl.uniform1f(plotHeightLocation, plotArea.height)
-    
-    const drawLine = (data, color) => {
+    const drawLine = (data, color, dashed = false) => {
       if (!data || data.length === 0) return
       
       const targetWidth = Math.floor(plotArea.width)
       const sampled = this._quickSample(data, targetWidth)
       const points = sampled.length
-      const vertices = new Float32Array(points * 2)
       
+      ctx.strokeStyle = color
+      ctx.lineWidth = 1.5
+      if (dashed) ctx.setLineDash([5, 3])
+      
+      ctx.beginPath()
       for (let i = 0; i < points; i++) {
-        vertices[i * 2] = i / Math.max(1, points - 1)
-        vertices[i * 2 + 1] = sampled[i]
+        const x = plotArea.x + (i / Math.max(1, points - 1)) * plotArea.width
+        const value = sampled[i]
+        const ratio = (maxLevel - value) / (maxLevel - minLevel)
+        const y = plotArea.y + ratio * plotArea.height
+        
+        if (i === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
       }
-      
-      const buffer = gl.createBuffer()
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW)
-      
-      gl.enableVertexAttribArray(positionLocation)
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
-      
-      gl.uniform4f(colorLocation, color[0], color[1], color[2], color[3])
-      gl.drawArrays(gl.LINE_STRIP, 0, points)
-      
-      gl.deleteBuffer(buffer)
+      ctx.stroke()
+      ctx.setLineDash([])
     }
     
     if (this.maxHoldData) {
-      drawLine(this.maxHoldData, [1.0, 0.3, 0.3, 1.0])
+      drawLine(this.maxHoldData, '#ff4d4d', true)
     }
     
     if (this.minHoldData) {
-      drawLine(this.minHoldData, [0.3, 0.8, 1.0, 1.0])
+      drawLine(this.minHoldData, '#4dd2ff', true)
     }
     
     if (this.avgData) {
-      drawLine(this.avgData, [1.0, 1.0, 0.3, 1.0])
+      drawLine(this.avgData, '#ffff4d', true)
     }
+    
+    ctx.restore()
   }
   
   _quickSample(data, targetWidth) {

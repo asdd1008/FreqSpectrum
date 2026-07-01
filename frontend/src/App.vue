@@ -7,6 +7,9 @@
       <el-tab-pane label="电平监测" name="level">
         <LevelMonitor />
       </el-tab-pane>
+      <el-tab-pane label="新频谱组件" name="new-spectrum">
+        <SpectrumTest />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -15,6 +18,7 @@
 import { ref } from 'vue'
 import SpectrumMonitor from './components/SpectrumMonitor.vue'
 import LevelMonitor from './components/LevelMonitor.vue'
+import SpectrumTest from './components/SpectrumTest.vue'
 
 const activeTab = ref('spectrum')
 </script>
