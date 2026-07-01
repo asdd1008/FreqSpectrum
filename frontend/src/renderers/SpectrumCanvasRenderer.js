@@ -29,6 +29,7 @@ export class SpectrumCanvasRenderer {
     this.levelIndicator = null
     this.boxSelection = null
     this.timeLine = 0
+    this.dpr = 1
     
     this.resize()
   }
@@ -36,6 +37,7 @@ export class SpectrumCanvasRenderer {
   resize() {
     const rect = this.canvas.getBoundingClientRect()
     const dpr = window.devicePixelRatio || 1
+    this.dpr = dpr
     this.canvas.width = rect.width * dpr
     this.canvas.height = rect.height * dpr
     this.ctx.scale(dpr, dpr)
@@ -317,24 +319,29 @@ export class SpectrumCanvasRenderer {
   drawWaterfall() {
     if (!this.waterfallData || this.waterfallData.length === 0) return
     
-    const imageData = this.ctx.createImageData(this.waterfallArea.width, this.waterfallArea.height)
+    const w = Math.floor(this.waterfallArea.width * this.dpr)
+    const h = Math.floor(this.waterfallArea.height * this.dpr)
+    const x = Math.floor(this.waterfallArea.x * this.dpr)
+    const y = Math.floor(this.waterfallArea.y * this.dpr)
+    
+    const imageData = this.ctx.createImageData(w, h)
     const data = imageData.data
     
-    const lineHeight = this.waterfallArea.height / Math.max(1, this.waterfallData.length)
+    const lineHeight = h / Math.max(1, this.waterfallData.length)
     const points = this.waterfallData[0]?.length || 1
     
-    for (let y = 0; y < this.waterfallArea.height; y++) {
-      const lineIndex = Math.min(this.waterfallData.length - 1, Math.floor(y / lineHeight))
+    for (let py = 0; py < h; py++) {
+      const lineIndex = Math.min(this.waterfallData.length - 1, Math.floor(py / lineHeight))
       const lineData = this.waterfallData[lineIndex]
       
       if (!lineData) continue
       
-      for (let x = 0; x < this.waterfallArea.width; x++) {
-        const pointIndex = Math.min(points - 1, Math.floor((x / this.waterfallArea.width) * points))
+      for (let px = 0; px < w; px++) {
+        const pointIndex = Math.min(points - 1, Math.floor((px / w) * points))
         const value = lineData[pointIndex]
         
         const color = this.getWaterfallColor(value)
-        const idx = (y * this.waterfallArea.width + x) * 4
+        const idx = (py * w + px) * 4
         
         data[idx] = color.r
         data[idx + 1] = color.g
@@ -343,7 +350,7 @@ export class SpectrumCanvasRenderer {
       }
     }
     
-    this.ctx.putImageData(imageData, this.waterfallArea.x, this.waterfallArea.y)
+    this.ctx.putImageData(imageData, x, y)
   }
 
   getWaterfallColor(value) {
