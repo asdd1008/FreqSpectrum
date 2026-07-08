@@ -3,32 +3,30 @@ self.onmessage = function(e) {
   
   switch (type) {
     case 'sample':
-      sampleData(data)
-      break
-    default:
+      sample(data)
       break
   }
 }
 
-function sampleData(data) {
-  const { spectrum, targetWidth, zoomX } = data
-  
-  if (!spectrum || spectrum.length === 0) {
-    self.postMessage({ type: 'sampled', data: { sampled: new Float32Array(0) } })
+function sample({ spectrum, targetWidth, zoomX }) {
+  if (!spectrum || spectrum.length === 0 || targetWidth <= 0) {
+    self.postMessage({ type: 'sampled', data: { sampled: new Float32Array() } })
     return
   }
   
-  if (!targetWidth || targetWidth <= 0) {
-    self.postMessage({ type: 'sampled', data: { sampled: new Float32Array(spectrum) } })
+  const zoomStart = zoomX ? zoomX[0] : 0
+  const zoomEnd = zoomX ? zoomX[1] : 1
+  
+  const z0 = Math.max(0, Math.min(1, zoomStart))
+  const z1 = Math.max(0, Math.min(1, zoomEnd))
+  const startIdx = Math.floor(Math.min(z0, z1) * spectrum.length)
+  const endIdx = Math.ceil(Math.max(z0, z1) * spectrum.length)
+  const visibleData = spectrum.slice(Math.max(0, startIdx), Math.min(spectrum.length, endIdx))
+  
+  if (visibleData.length <= 0) {
+    self.postMessage({ type: 'sampled', data: { sampled: new Float32Array() } })
     return
   }
-  
-  const z0 = zoomX ? zoomX[0] : 0
-  const z1 = zoomX ? zoomX[1] : 1
-  
-  const startIdx = Math.floor(z0 * spectrum.length)
-  const endIdx = Math.ceil(z1 * spectrum.length)
-  const visibleData = spectrum.slice(startIdx, endIdx)
   
   if (visibleData.length <= targetWidth) {
     self.postMessage({ 
@@ -55,8 +53,5 @@ function sampleData(data) {
     sampled[i] = max
   }
   
-  self.postMessage({ 
-    type: 'sampled', 
-    data: { sampled } 
-  })
+  self.postMessage({ type: 'sampled', data: { sampled } })
 }

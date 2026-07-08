@@ -1,29 +1,19 @@
 <template>
-  <div ref="spectrumContainer" class="base-freq-container" :style="{ height: wrapFreqHeight }">
-  </div>
+  <div ref="spectrumContainer" class="base-freq-container"></div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch, getCurrentInstance, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { Spectrum } from './Spectrum.js'
-import mitt from 'mitt'
 
 const props = defineProps({
-  height: {
-    type: [String, Number],
-    default: '100%'
-  },
   config: {
     type: Object,
     default: () => ({})
   },
-  hoverInfoFields: {
-    type: Array,
-    default: () => ['centerFreq', 'bandwidth', 'maxLevel']
-  },
-  customMenuButtons: {
-    type: Array,
-    default: () => []
+  eventBus: {
+    type: Object,
+    default: null
   }
 })
 
@@ -41,198 +31,233 @@ const emit = defineEmits([
   'play',
   'playbackStart',
   'playbackStop',
-  'markerAdd',
-  'markerRemove'
+  'playbackPause',
+  'playbackResume',
+  'playbackFrame'
 ])
 
-const { proxy } = getCurrentInstance()
-
 const spectrumContainer = ref(null)
-const spectrumInstance = ref(null)
-const isReady = ref(false)
+let spectrumInstance = null
 
 const wrapFreqHeight = computed(() => {
-  if (typeof props.height === 'number') {
-    return props.height + 'px'
-  }
-  return props.height
+  return spectrumInstance ? spectrumInstance.height : 0
 })
 
-const initSpectrum = () => {
+function initSpectrum() {
   if (!spectrumContainer.value) return
   
-  const mergedConfig = {
-    ...props.config
+  spectrumInstance = new Spectrum(spectrumContainer.value, props.config)
+  
+  spectrumInstance.on('click', (data) => emit('click', data))
+  spectrumInstance.on('doubleClick', (data) => emit('doubleClick', data))
+  spectrumInstance.on('doubleClickMarker', (data) => emit('doubleClickMarker', data))
+  spectrumInstance.on('hover', (data) => emit('hover', data))
+  spectrumInstance.on('hoverEnd', () => emit('hoverEnd'))
+  spectrumInstance.on('zoom', (data) => emit('zoom', data))
+  spectrumInstance.on('resize', (data) => emit('resize', data))
+  spectrumInstance.on('fallsSelectComplate', (data) => emit('fallsSelectComplate', data))
+  spectrumInstance.on('pause', () => emit('pause'))
+  spectrumInstance.on('play', () => emit('play'))
+  spectrumInstance.on('playbackStart', (data) => emit('playbackStart', data))
+  spectrumInstance.on('playbackStop', () => emit('playbackStop'))
+  spectrumInstance.on('playbackPause', () => emit('playbackPause'))
+  spectrumInstance.on('playbackResume', () => emit('playbackResume'))
+  
+  if (props.eventBus) {
+    props.eventBus.on('screenSignal', handleScreenSignal)
+    props.eventBus.on('addMarker', handleAddMarker)
+    props.eventBus.on('clearMarkers', handleClearMarkers)
+    props.eventBus.on('setZoom', handleSetZoom)
+    props.eventBus.on('resetZoom', handleResetZoom)
   }
   
-  spectrumInstance.value = new Spectrum(spectrumContainer.value, mergedConfig)
-  
-  spectrumInstance.value.on('click', (data) => {
-    emit('click', data)
-  })
-  
-  spectrumInstance.value.on('doubleClick', (data) => {
-    emit('doubleClick', data)
-  })
-  
-  spectrumInstance.value.on('doubleClickMarker', (data) => {
-    emit('doubleClickMarker', data)
-  })
-  
-  spectrumInstance.value.on('hover', (data) => {
-    emit('hover', data)
-  })
-  
-  spectrumInstance.value.on('hoverEnd', () => {
-    emit('hoverEnd')
-  })
-  
-  spectrumInstance.value.on('zoom', (data) => {
-    emit('zoom', data)
-  })
-  
-  spectrumInstance.value.on('resize', (data) => {
-    emit('resize', data)
-  })
-  
-  spectrumInstance.value.on('fallsSelectComplate', (data) => {
-    emit('fallsSelectComplate', data)
-  })
-  
-  spectrumInstance.value.on('pause', () => {
-    emit('pause')
-  })
-  
-  spectrumInstance.value.on('play', () => {
-    emit('play')
-  })
-  
-  spectrumInstance.value.on('playbackStart', () => {
-    emit('playbackStart')
-  })
-  
-  spectrumInstance.value.on('playbackStop', () => {
-    emit('playbackStop')
-  })
-  
-  if (proxy?.$EventBus) {
-    proxy.$EventBus.on('screenSignal', handleScreenSignal)
-  }
-  
-  isReady.value = true
-  emit('ready', spectrumInstance.value)
+  emit('ready', spectrumInstance)
 }
 
-const handleScreenSignal = (signal) => {
-  if (!spectrumInstance.value) return
+function handleScreenSignal(signal) {
+  if (!spectrumInstance) return
   
-  if (signal.type === 'highlight') {
-    spectrumInstance.value.addHighlightedSignal?.(signal)
-  } else if (signal.type === 'clearHighlight') {
-    spectrumInstance.value.clearHighlightedSignals?.()
+  if (signal.type === 'boxSelect') {
+    spectrumInstance.boxSelection = signal.data
+    spectrumInstance._drawActiveLayer()
   }
 }
 
-const beginDraw = (frameData) => {
-  spectrumInstance.value?.beginDraw(frameData)
+function handleAddMarker(marker) {
+  spectrumInstance?.addMarker(marker)
 }
 
-const addData = (data) => {
-  spectrumInstance.value?.addData(data)
+function handleClearMarkers() {
+  spectrumInstance?.clearMarkers()
 }
 
-const updateAxis = (config) => {
-  spectrumInstance.value?.updateAxis(config)
+function handleSetZoom(data) {
+  spectrumInstance?.setZoom(data.zoomX, data.zoomY)
 }
 
-const addMarker = (marker) => {
-  spectrumInstance.value?.addMarker(marker)
+function handleResetZoom() {
+  spectrumInstance?.resetZoom()
 }
 
-const removeMarker = (id) => {
-  spectrumInstance.value?.removeMarker(id)
+function addData(data) {
+  spectrumInstance?.addData(data)
 }
 
-const clearMarkers = () => {
-  spectrumInstance.value?.clearMarkers()
+function beginDraw(frameData) {
+  spectrumInstance?.beginDraw(frameData)
 }
 
-const setZoom = (zoomX, zoomY) => {
-  spectrumInstance.value?.setZoom(zoomX, zoomY)
+function updateAxis(config) {
+  spectrumInstance?.updateAxis(config)
 }
 
-const resetZoom = () => {
-  spectrumInstance.value?.resetZoom()
+function addMarker(marker) {
+  spectrumInstance?.addMarker(marker)
 }
 
-const pause = () => {
-  spectrumInstance.value?.pause()
+function removeMarker(id) {
+  spectrumInstance?.removeMarker(id)
 }
 
-const play = () => {
-  spectrumInstance.value?.play()
+function clearMarkers() {
+  spectrumInstance?.clearMarkers()
 }
 
-const startPlayback = (data, onFrame) => {
-  spectrumInstance.value?.startPlayback(data, onFrame)
+function addRainMarker(marker) {
+  spectrumInstance?.addRainMarker(marker)
 }
 
-const stopPlayback = () => {
-  spectrumInstance.value?.stopPlayback()
+function removeRainMarker(id) {
+  spectrumInstance?.removeRainMarker(id)
 }
 
-const clearWaterfall = () => {
-  spectrumInstance.value?.clearWaterfall()
+function clearRainMarkers() {
+  spectrumInstance?.clearRainMarkers()
 }
 
-const setConfig = (config) => {
-  spectrumInstance.value?.setConfig(config)
+function setZoom(zoomX, zoomY) {
+  spectrumInstance?.setZoom(zoomX, zoomY)
 }
 
-const getInstance = () => {
-  return spectrumInstance.value
+function resetZoom() {
+  spectrumInstance?.resetZoom()
 }
+
+function pause() {
+  spectrumInstance?.pause()
+}
+
+function play() {
+  spectrumInstance?.play()
+}
+
+function startPlayback(data, onFrame) {
+  spectrumInstance?.startPlayback(data, onFrame)
+}
+
+function pausePlayback() {
+  spectrumInstance?.pausePlayback()
+}
+
+function resumePlayback() {
+  spectrumInstance?.resumePlayback()
+}
+
+function seekPlayback(frameIndex) {
+  spectrumInstance?.seekPlayback(frameIndex)
+}
+
+function stopPlayback() {
+  spectrumInstance?.stopPlayback()
+}
+
+function clearWaterfall() {
+  spectrumInstance?.clearWaterfall()
+}
+
+function setConfig(config) {
+  spectrumInstance?.setConfig(config)
+}
+
+function setHoverInfoConfig(config) {
+  spectrumInstance?.setHoverInfoConfig(config)
+}
+
+function getInstance() {
+  return spectrumInstance
+}
+
+function getFreqForX(x) {
+  return spectrumInstance?.getFreqForX(x)
+}
+
+function getXForFreq(freq) {
+  return spectrumInstance?.getXForFreq(freq)
+}
+
+function getLevelForY(y) {
+  return spectrumInstance?.getLevelForY(y)
+}
+
+function getYForLevel(level) {
+  return spectrumInstance?.getYForLevel(level)
+}
+
+function render() {
+  spectrumInstance?.render()
+}
+
+watch(() => props.config, (newConfig) => {
+  if (spectrumInstance) {
+    spectrumInstance.setConfig(newConfig)
+  }
+}, { deep: true })
+
+onMounted(() => {
+  initSpectrum()
+})
+
+onBeforeUnmount(() => {
+  if (props.eventBus) {
+    props.eventBus.off('screenSignal', handleScreenSignal)
+    props.eventBus.off('addMarker', handleAddMarker)
+    props.eventBus.off('clearMarkers', handleClearMarkers)
+    props.eventBus.off('setZoom', handleSetZoom)
+    props.eventBus.off('resetZoom', handleResetZoom)
+  }
+  spectrumInstance?.destroy()
+  spectrumInstance = null
+})
 
 defineExpose({
-  beginDraw,
   addData,
+  beginDraw,
   updateAxis,
   addMarker,
   removeMarker,
   clearMarkers,
+  addRainMarker,
+  removeRainMarker,
+  clearRainMarkers,
   setZoom,
   resetZoom,
   pause,
   play,
   startPlayback,
+  pausePlayback,
+  resumePlayback,
+  seekPlayback,
   stopPlayback,
   clearWaterfall,
   setConfig,
+  setHoverInfoConfig,
   getInstance,
-  isReady
-})
-
-watch(() => props.config, (newConfig) => {
-  if (spectrumInstance.value && newConfig) {
-    spectrumInstance.value.setConfig(newConfig)
-  }
-}, { deep: true })
-
-onMounted(() => {
-  nextTick(() => {
-    initSpectrum()
-  })
-})
-
-onBeforeUnmount(() => {
-  if (proxy?.$EventBus) {
-    proxy.$EventBus.off('screenSignal', handleScreenSignal)
-  }
-  
-  if (spectrumInstance.value) {
-    spectrumInstance.value.destroy()
-    spectrumInstance.value = null
-  }
+  getFreqForX,
+  getXForFreq,
+  getLevelForY,
+  getYForLevel,
+  render,
+  wrapFreqHeight
 })
 </script>
 
@@ -240,8 +265,7 @@ onBeforeUnmount(() => {
 .base-freq-container {
   width: 100%;
   height: 100%;
-  min-height: 300px;
   position: relative;
-  overflow: hidden;
+  background: #000a14;
 }
 </style>

@@ -1,42 +1,29 @@
 <template>
-  <div class="spectrum-container">
-    <SpectrumModules
+  <div class="spectrum-wrapper">
+    <spectrum-modules
       ref="spectrumModulesRef"
-      :height="height"
-      :default-config="config"
+      :config="finalConfig"
       :markers="markers"
-      :highlighted-signals="highlightedSignals"
-      :hover-info-fields="hoverInfoFields"
-      :custom-menu-buttons="customMenuButtons"
-      @ready="onReady"
-      @click="onClick"
-      @double-click="onDoubleClick"
-      @double-click-marker="onDoubleClickMarker"
-      @marker-add="onMarkerAdd"
-      @marker-remove="onMarkerRemove"
-      @falls-select-complate="onFallsSelectComplate"
-      @signal-highlight="onSignalHighlight"
-      @pause="onPause"
-      @play="onPlay"
-      @playback-start="onPlaybackStart"
-      @playback-stop="onPlaybackStop"
-      @progress-update="onProgressUpdate"
-      @zoom="onZoom"
-      @hover="onHover"
-      @hover-end="onHoverEnd"
+      :signalSelections="signalSelections"
+      @ready="handleReady"
+      @click="handleClick"
+      @doubleClick="handleDoubleClick"
+      @markerClick="handleMarkerClick"
+      @hover="handleHover"
+      @zoomChange="handleZoomChange"
+      @fallsSelect="handleFallsSelect"
+      @playbackFrame="handlePlaybackFrame"
+      @pause="handlePause"
+      @play="handlePlay"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import SpectrumModules from './spectrum_modules.vue'
 
 const props = defineProps({
-  height: {
-    type: [String, Number],
-    default: '100%'
-  },
   config: {
     type: Object,
     default: () => ({})
@@ -45,26 +32,9 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  highlightedSignals: {
+  signalSelections: {
     type: Array,
     default: () => []
-  },
-  hoverInfoFields: {
-    type: Array,
-    default: () => [
-      { key: 'skyFreq', label: '天空中心频率', visible: true },
-      { key: 'accessFreq', label: '接入中心频率', visible: true },
-      { key: 'bandwidth', label: '带宽', visible: true },
-      { key: 'maxLevel', label: '最大电平值', visible: true }
-    ]
-  },
-  customMenuButtons: {
-    type: Array,
-    default: () => [
-      { label: '添加标记', action: 'addMarker' },
-      { label: '高亮显示', action: 'highlight' },
-      { label: '查看详情', action: 'details' }
-    ]
   }
 })
 
@@ -72,177 +42,97 @@ const emit = defineEmits([
   'ready',
   'click',
   'doubleClick',
-  'doubleClickMarker',
-  'markerAdd',
-  'markerRemove',
-  'fallsSelectComplate',
-  'signalHighlight',
-  'pause',
-  'play',
-  'playbackStart',
-  'playbackStop',
-  'progressUpdate',
-  'zoom',
+  'markerClick',
   'hover',
-  'hoverEnd',
-  'dataUpdate'
+  'zoomChange',
+  'fallsSelect',
+  'playbackFrame',
+  'pause',
+  'play'
 ])
 
-const { proxy } = getCurrentInstance()
-
 const spectrumModulesRef = ref(null)
-const isReady = ref(false)
 
-const onReady = (instance) => {
-  isReady.value = true
-  emit('ready', instance)
+const finalConfig = computed(() => props.config)
+
+function handleReady(data) {
+  emit('ready', data)
 }
 
-const onClick = (data) => {
+function handleClick(data) {
   emit('click', data)
 }
 
-const onDoubleClick = (data) => {
+function handleDoubleClick(data) {
   emit('doubleClick', data)
 }
 
-const onDoubleClickMarker = (data) => {
-  emit('doubleClickMarker', data)
+function handleMarkerClick(data) {
+  emit('markerClick', data)
 }
 
-const onMarkerAdd = (marker) => {
-  emit('markerAdd', marker)
-}
-
-const onMarkerRemove = (id) => {
-  emit('markerRemove', id)
-}
-
-const onFallsSelectComplate = (result) => {
-  emit('fallsSelectComplate', result)
-}
-
-const onSignalHighlight = (signal) => {
-  emit('signalHighlight', signal)
-}
-
-const onPause = () => {
-  emit('pause')
-}
-
-const onPlay = () => {
-  emit('play')
-}
-
-const onPlaybackStart = () => {
-  emit('playbackStart')
-}
-
-const onPlaybackStop = () => {
-  emit('playbackStop')
-}
-
-const onProgressUpdate = (progress) => {
-  emit('progressUpdate', progress)
-}
-
-const onZoom = (data) => {
-  emit('zoom', data)
-}
-
-const onHover = (data) => {
+function handleHover(data) {
   emit('hover', data)
 }
 
-const onHoverEnd = () => {
-  emit('hoverEnd')
+function handleZoomChange(data) {
+  emit('zoomChange', data)
 }
 
-const addData = (data) => {
-  spectrumModulesRef.value?.addData(data)
-  emit('dataUpdate', data)
+function handleFallsSelect(data) {
+  emit('fallsSelect', data)
 }
 
-const beginDraw = (frameData) => {
-  spectrumModulesRef.value?.beginDraw(frameData)
+function handlePlaybackFrame(data) {
+  emit('playbackFrame', data)
 }
 
-const updateAxis = (config) => {
-  spectrumModulesRef.value?.updateAxis(config)
+function handlePause() {
+  emit('pause')
 }
 
-const addMarker = (marker) => {
-  spectrumModulesRef.value?.addMarker(marker)
-}
-
-const removeMarker = (id) => {
-  spectrumModulesRef.value?.removeMarker(id)
-}
-
-const clearMarkers = () => {
-  spectrumModulesRef.value?.clearMarkers()
-}
-
-const setZoom = (zoomX, zoomY) => {
-  spectrumModulesRef.value?.setZoom(zoomX, zoomY)
-}
-
-const resetZoom = () => {
-  spectrumModulesRef.value?.resetZoom()
-}
-
-const pause = () => {
-  spectrumModulesRef.value?.pause()
-}
-
-const play = () => {
-  spectrumModulesRef.value?.play()
-}
-
-const startPlayback = (data, onFrame) => {
-  spectrumModulesRef.value?.startPlayback(data, onFrame)
-}
-
-const stopPlayback = () => {
-  spectrumModulesRef.value?.stopPlayback()
-}
-
-const clearWaterfall = () => {
-  spectrumModulesRef.value?.clearWaterfall()
-}
-
-const setConfig = (config) => {
-  spectrumModulesRef.value?.setConfig(config)
-}
-
-const getInstance = () => {
-  return spectrumModulesRef.value?.getInstance()
+function handlePlay() {
+  emit('play')
 }
 
 defineExpose({
-  addData,
-  beginDraw,
-  updateAxis,
-  addMarker,
-  removeMarker,
-  clearMarkers,
-  setZoom,
-  resetZoom,
-  pause,
-  play,
-  startPlayback,
-  stopPlayback,
-  clearWaterfall,
-  setConfig,
-  getInstance,
-  isReady
+  addData: (data) => spectrumModulesRef.value?.addData(data),
+  beginDraw: (frameData) => spectrumModulesRef.value?.beginDraw(frameData),
+  updateAxis: (config) => spectrumModulesRef.value?.updateAxis(config),
+  addMarker: (marker) => spectrumModulesRef.value?.addMarker(marker),
+  removeMarker: (id) => spectrumModulesRef.value?.removeMarker(id),
+  clearMarkers: () => spectrumModulesRef.value?.clearMarkers(),
+  setZoom: (zoomX, zoomY) => spectrumModulesRef.value?.setZoom(zoomX, zoomY),
+  resetZoom: () => spectrumModulesRef.value?.resetZoom(),
+  pause: () => spectrumModulesRef.value?.pause(),
+  play: () => spectrumModulesRef.value?.play(),
+  startPlayback: (data, onFrame) => spectrumModulesRef.value?.startPlayback(data, onFrame),
+  stopPlayback: () => spectrumModulesRef.value?.stopPlayback(),
+  clearWaterfall: () => spectrumModulesRef.value?.clearWaterfall(),
+  setConfig: (config) => spectrumModulesRef.value?.setConfig(config),
+  getInstance: () => spectrumModulesRef.value?.getInstance(),
+  fallsSelectPlayBack: (data, item) => spectrumModulesRef.value?.fallsSelectPlayBack(data, item),
+  addRainMarker: (marker) => spectrumModulesRef.value?.addRainMarker(marker),
+  updateRainMarker: (id, updates) => spectrumModulesRef.value?.updateRainMarker(id, updates),
+  removeRainMarker: (id) => spectrumModulesRef.value?.removeRainMarker(id),
+  clearRainMarkers: () => spectrumModulesRef.value?.clearRainMarkers(),
+  addSignalBox: (box) => spectrumModulesRef.value?.addSignalBox(box),
+  clearSignalBoxes: () => spectrumModulesRef.value?.clearSignalBoxes(),
+  eventBus: () => spectrumModulesRef.value?.eventBus
+})
+
+onMounted(() => {
+})
+
+onBeforeUnmount(() => {
 })
 </script>
 
 <style scoped>
-.spectrum-container {
+.spectrum-wrapper {
   width: 100%;
   height: 100%;
   position: relative;
+  background: #000a14;
 }
 </style>

@@ -1,55 +1,53 @@
 <template>
-  <div class="spectrum-modules-container">
-    <BaseFreq
+  <div class="spectrum-modules">
+    <base-freq
       ref="baseFreqRef"
-      :height="height"
-      :config="spectrumConfig"
-      :hoverInfoFields="hoverInfoFields"
-      :customMenuButtons="customMenuButtons"
-      @ready="onSpectrumReady"
-      @click="onSpectrumClick"
-      @doubleClick="onSpectrumDoubleClick"
-      @doubleClickMarker="onDoubleClickMarker"
-      @hover="onSpectrumHover"
-      @hoverEnd="onSpectrumHoverEnd"
-      @zoom="onSpectrumZoom"
-      @fallsSelectComplate="onFallsSelectComplate"
-      @pause="onPause"
-      @play="onPlay"
-      @playbackStart="onPlaybackStart"
-      @playbackStop="onPlaybackStop"
+      :config="mergedConfig"
+      :eventBus="eventBus"
+      @ready="handleSpectrumReady"
+      @click="handleClick"
+      @doubleClick="handleDoubleClick"
+      @doubleClickMarker="handleDoubleClickMarker"
+      @hover="handleHover"
+      @hoverEnd="handleHoverEnd"
+      @zoom="handleZoom"
+      @resize="handleResize"
+      @fallsSelectComplate="handleFallsSelectComplate"
+      @pause="handlePause"
+      @play="handlePlay"
+      @playbackStart="handlePlaybackStart"
+      @playbackStop="handlePlaybackStop"
+      @playbackPause="handlePlaybackPause"
+      @playbackResume="handlePlaybackResume"
     />
     
-    <div v-if="hoverInfo.visible" class="hover-popup"
-      :style="{ left: hoverInfo.x + 'px', top: hoverInfo.y + 'px' }">
-      <div class="hover-header">信号详情</div>
-      <div class="hover-content">
-        <div v-for="field in visibleHoverFields" :key="field.key">
-          <span class="hover-label">{{ field.label }}:</span>
-          <span class="hover-value">{{ field.value }}</span>
-        </div>
-      </div>
-      <div v-if="customMenuButtons.length > 0" class="hover-actions">
-        <el-button v-for="btn in customMenuButtons" :key="btn.action"
-          size="small" @click="handleMenuAction(btn.action)">
-          {{ btn.label }}
-        </el-button>
+    <div v-if="state.isPlayback" class="playback-controls">
+      <button @click="togglePlaybackPause">
+        {{ state.isPlaybackPaused ? '播放' : '暂停' }}
+      </button>
+      <button @click="stopPlayback">停止</button>
+      <div class="playback-progress">
+        <input 
+          type="range" 
+          :min="0" 
+          :max="Math.max(0, state.playbackTotal - 1)" 
+          :value="state.playbackFrame"
+          @input="handleProgressInput"
+          class="progress-slider"
+        />
+        <span class="progress-text">{{ state.playbackFrame + 1 }} / {{ state.playbackTotal }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, getCurrentInstance } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import mitt from 'mitt'
 import BaseFreq from './base_freq.vue'
 
 const props = defineProps({
-  height: {
-    type: [String, Number],
-    default: '100%'
-  },
-  defaultConfig: {
+  config: {
     type: Object,
     default: () => ({})
   },
@@ -57,32 +55,15 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  rainMarkers: {
+  signalSelections: {
     type: Array,
     default: () => []
   },
-  highlightedSignals: {
-    type: Array,
-    default: () => []
+  hoverInfo: {
+    type: Object,
+    default: () => ({})
   },
-  hoverInfoFields: {
-    type: Array,
-    default: () => [
-      { key: 'skyFreq', label: '天空中心频率', visible: true },
-      { key: 'accessFreq', label: '接入中心频率', visible: true },
-      { key: 'bandwidth', label: '带宽', visible: true },
-      { key: 'maxLevel', label: '最大电平值', visible: true }
-    ]
-  },
-  customMenuButtons: {
-    type: Array,
-    default: () => [
-      { label: '添加标记', action: 'addMarker' },
-      { label: '高亮显示', action: 'highlight' },
-      { label: '查看详情', action: 'details' }
-    ]
-  },
-  pollingInterval: {
+  playbackSpeed: {
     type: Number,
     default: 1000
   }
@@ -90,389 +71,371 @@ const props = defineProps({
 
 const emit = defineEmits([
   'ready',
-  'dataUpdate',
   'click',
   'doubleClick',
-  'doubleClickMarker',
-  'markerAdd',
-  'markerRemove',
-  'fallsSelectComplate',
-  'signalHighlight',
-  'pause',
-  'play',
+  'markerClick',
+  'hover',
+  'hoverEnd',
+  'zoomChange',
+  'fallsSelect',
+  'playbackFrame',
   'playbackStart',
   'playbackStop',
-  'progressUpdate'
+  'playbackPause',
+  'playbackResume',
+  'pause',
+  'play'
 ])
 
-const { proxy } = getCurrentInstance()
-
 const baseFreqRef = ref(null)
-const spectrumConfig = ref({})
-const isReady = ref(false)
-const isPaused = ref(false)
-const isPlayingBack = ref(false)
+const eventBus = mitt()
 
-const playbackData = ref([])
-const playbackIndex = ref(0)
-let playbackTimer = null
+const DEFAULT_CONFIG = {
+  padding: { top: 30, right: 80, bottom: 30, left: 60 },
+  waterfallHeight: 200,
+  refLevel: 0,
+  minLevel: -100,
+  centerFreq: 1000000000,
+  span: 100000000,
+  showGrid: true,
+  showLegend: true,
+  waterfallVisible: true,
+  zoomX: [0, 1],
+  zoomY: [0, 1],
+  maxHold: true,
+  minHold: false,
+  avgHold: false,
+  playbackSpeed: 1000,
+  hoverInfo: {
+    visible: true,
+    fields: ['centerFreq', 'bandwidth', 'maxLevel'],
+    customFields: [],
+    menuButtons: []
+  }
+}
 
-const progressData = ref({ frame: 0, total: 0 })
-let pollingTimer = null
-
-const markersList = ref([])
-const rainMarkersList = ref([])
-const highlightedSignalsList = ref([])
-
-const hoverInfo = reactive({
-  visible: false,
-  x: 0,
-  y: 0,
-  freq: 0,
-  level: 0,
-  maxLevel: 0,
-  skyFreq: 0,
-  accessFreq: 0,
-  bandwidth: 0
+const mergedConfig = computed(() => {
+  const cfg = {
+    ...DEFAULT_CONFIG,
+    ...props.config,
+    padding: { ...DEFAULT_CONFIG.padding, ...props.config.padding },
+    hoverInfo: { ...DEFAULT_CONFIG.hoverInfo, ...props.hoverInfo, ...props.config.hoverInfo },
+    playbackSpeed: props.playbackSpeed || props.config.playbackSpeed || DEFAULT_CONFIG.playbackSpeed
+  }
+  return cfg
 })
 
-const visibleHoverFields = computed(() => {
-  return props.hoverInfoFields.filter(f => f.visible).map(field => ({
-    ...field,
-    value: getHoverFieldValue(field.key)
-  }))
+const state = reactive({
+  isReady: false,
+  isPaused: false,
+  isPlayback: false,
+  isPlaybackPaused: false,
+  playbackFrame: 0,
+  playbackTotal: 0,
+  playbackData: null,
+  currentData: null,
+  rainMarkers: [],
+  signalBoxes: [],
+  selectResult: null
 })
 
-const getHoverFieldValue = (key) => {
-  switch (key) {
-    case 'skyFreq':
-      return formatFreq(hoverInfo.skyFreq || 0)
-    case 'accessFreq':
-      return formatFreq(hoverInfo.accessFreq || 0)
-    case 'bandwidth':
-      return formatFreq(hoverInfo.bandwidth || 0)
-    case 'maxLevel':
-      return (hoverInfo.maxLevel || 0).toFixed(2) + ' dBm'
-    case 'freq':
-      return formatFreq(hoverInfo.freq || 0)
-    case 'level':
-      return (hoverInfo.level || 0).toFixed(2) + ' dBm'
-    default:
-      return hoverInfo[key] || ''
-  }
+const isPlaying = computed(() => !state.isPaused && !state.isPlayback)
+
+function initSpectrumConfig() {
+  return { ...DEFAULT_CONFIG, ...props.config }
 }
 
-const initSpectrumConfig = () => {
-  const defaultConfig = {
-    padding: { top: 30, right: 80, bottom: 30, left: 60 },
-    waterfallHeight: 200,
-    refLevel: 0,
-    minLevel: -100,
-    centerFreq: 1000000000,
-    span: 100000000,
-    showGrid: true,
-    showLegend: true,
-    waterfallVisible: true,
-    zoomX: [0, 1],
-    zoomY: [0, 1],
-    maxHold: true,
-    minHold: false,
-    avgHold: false
-  }
+function handleSpectrumReady(instance) {
+  state.isReady = true
   
-  spectrumConfig.value = mergeDeep(defaultConfig, props.defaultConfig)
-}
-
-const mergeDeep = (target, source) => {
-  const result = { ...target }
-  for (const key in source) {
-    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-      result[key] = mergeDeep(result[key] || {}, source[key])
-    } else {
-      result[key] = source[key]
-    }
-  }
-  return result
-}
-
-const formatFreq = (freq) => {
-  if (freq >= 1e9) return (freq / 1e9).toFixed(3) + ' GHz'
-  if (freq >= 1e6) return (freq / 1e6).toFixed(3) + ' MHz'
-  if (freq >= 1e3) return (freq / 1e3).toFixed(3) + ' kHz'
-  return freq.toFixed(0) + ' Hz'
-}
-
-const onSpectrumReady = (instance) => {
-  isReady.value = true
-  
-  if (props.markers.length > 0) {
-    props.markers.forEach(m => instance.addMarker(m))
-    markersList.value = [...props.markers]
-  }
-  
-  if (props.highlightedSignals.length > 0) {
-    props.highlightedSignals.forEach(s => instance.addHighlightedSignal?.(s))
-    highlightedSignalsList.value = [...props.highlightedSignals]
-  }
-  
-  startPolling()
-  emit('ready', instance)
-}
-
-const onSpectrumClick = (data) => {
-  emit('click', data)
-}
-
-const onSpectrumDoubleClick = (data) => {
-  emit('doubleClick', data)
-}
-
-const onDoubleClickMarker = (data) => {
-  emit('doubleClickMarker', data)
-}
-
-const onSpectrumHover = (data) => {
-  if (data && data.freq !== undefined) {
-    hoverInfo.visible = true
-    hoverInfo.x = data.x + 15
-    hoverInfo.y = data.y - 10
-    hoverInfo.freq = data.freq
-    hoverInfo.level = data.level || 0
-    hoverInfo.skyFreq = data.skyFreq !== undefined ? data.skyFreq : data.freq
-    hoverInfo.accessFreq = data.accessFreq !== undefined ? data.accessFreq : data.freq * 0.95
-    hoverInfo.maxLevel = data.maxLevel !== undefined ? data.maxLevel : data.level || 0
-    hoverInfo.bandwidth = data.bandwidth || spectrumConfig.value.span / 100
-  }
-  emit('hover', data)
-}
-
-const onSpectrumHoverEnd = () => {
-  hoverInfo.visible = false
-  emit('hoverEnd')
-}
-
-const onSpectrumZoom = (data) => {
-  emit('zoom', data)
-}
-
-const onFallsSelectComplate = (result) => {
-  emit('fallsSelectComplate', result)
-  
-  if (result && result.selectData && result.selectData.length > 0) {
-    fallsSelectPlayBack(result)
-  }
-}
-
-const fallsSelectPlayBack = (result) => {
-  if (!baseFreqRef.value) return
-  if (!result || !result.selectData || result.selectData.length === 0) return
-  
-  pause()
-  playbackData.value = result.selectData || []
-  playbackIndex.value = 0
-  
-  baseFreqRef.value.startPlayback(playbackData.value, (frameInfo) => {
-    progressData.value = frameInfo
-    emit('progressUpdate', frameInfo)
+  props.markers.forEach(m => {
+    baseFreqRef.value?.addMarker(m)
   })
   
-  isPlayingBack.value = true
-  isPaused.value = true
-  
-  ElMessage.success(`开始回放：${result.selectData.length}帧数据，频率范围 ${formatFreq(result.startFreq)} - ${formatFreq(result.endFreq)}`)
+  emit('ready', {
+    instance,
+    api: {
+      addData,
+      beginDraw,
+      updateAxis,
+      addMarker,
+      removeMarker,
+      clearMarkers,
+      addRainMarker,
+      removeRainMarker,
+      clearRainMarkers,
+      setZoom,
+      resetZoom,
+      pause,
+      play,
+      startPlayback,
+      pausePlayback,
+      resumePlayback,
+      seekPlayback,
+      stopPlayback,
+      clearWaterfall,
+      setConfig,
+      setHoverInfoConfig,
+      getInstance,
+      getFreqForX,
+      getXForFreq,
+      getLevelForY,
+      getYForLevel,
+      fallsSelectPlayBack,
+      eventBus
+    }
+  })
 }
 
-const onPause = () => {
-  isPaused.value = true
-  emit('pause')
-}
-
-const onPlay = () => {
-  isPaused.value = false
-  isPlayingBack.value = false
-  playbackData.value = []
-  emit('play')
-}
-
-const onPlaybackStart = () => {
-  isPlayingBack.value = true
-  emit('playbackStart')
-}
-
-const onPlaybackStop = () => {
-  isPlayingBack.value = false
-  emit('playbackStop')
-}
-
-const handleMenuAction = (action) => {
-  switch (action) {
-    case 'addMarker':
-      addMarkerAtHover()
-      break
-    case 'highlight':
-      highlightSignal()
-      break
-    case 'details':
-      showSignalDetails()
-      break
-    default:
-      emit('menuAction', { action, hoverInfo })
+function addData(data) {
+  if (!state.isPaused && !state.isPlayback) {
+    baseFreqRef.value?.addData(data)
+    state.currentData = data
   }
 }
 
-const addMarkerAtHover = () => {
-  if (!baseFreqRef.value || !hoverInfo.freq) return
-  
-  const newMarker = {
-    id: Date.now(),
-    freq: hoverInfo.freq,
-    level: hoverInfo.level,
-    note: ''
-  }
-  
-  baseFreqRef.value.addMarker(newMarker)
-  markersList.value.push(newMarker)
-  emit('markerAdd', newMarker)
-  ElMessage.success('已添加标记')
-}
-
-const highlightSignal = () => {
-  if (!baseFreqRef.value || !hoverInfo.freq) return
-  
-  const newSignal = {
-    id: Date.now(),
-    freq: hoverInfo.freq,
-    bandwidth: hoverInfo.bandwidth * 10,
-    maxLevel: hoverInfo.maxLevel,
-    color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')
-  }
-  
-  baseFreqRef.value.getInstance()?.addHighlightedSignal?.(newSignal)
-  highlightedSignalsList.value.push(newSignal)
-  
-  if (proxy?.$EventBus) {
-    proxy.$EventBus.emit('screenSignal', { type: 'highlight', ...newSignal })
-  }
-  
-  emit('signalHighlight', newSignal)
-  ElMessage.success('已高亮信号')
-}
-
-const showSignalDetails = () => {
-  ElMessage.info(`
-    频率: ${formatFreq(hoverInfo.freq)}
-    电平: ${(hoverInfo.level || 0).toFixed(2)} dBm
-    最大电平: ${(hoverInfo.maxLevel || 0).toFixed(2)} dBm
-  `)
-}
-
-const addData = (data) => {
-  baseFreqRef.value?.addData(data)
-  emit('dataUpdate', data)
-}
-
-const beginDraw = (frameData) => {
+function beginDraw(frameData) {
   baseFreqRef.value?.beginDraw(frameData)
 }
 
-const updateAxis = (config) => {
-  spectrumConfig.value = mergeDeep(spectrumConfig.value, config)
+function updateAxis(config) {
   baseFreqRef.value?.updateAxis(config)
 }
 
-const addMarker = (marker) => {
+function handleClick(data) {
+  emit('click', data)
+}
+
+function handleDoubleClick(data) {
+  emit('doubleClick', data)
+}
+
+function handleDoubleClickMarker(data) {
+  emit('markerClick', data)
+}
+
+function handleHover(data) {
+  emit('hover', data)
+}
+
+function handleHoverEnd() {
+  emit('hoverEnd')
+}
+
+function handleZoom(data) {
+  emit('zoomChange', data)
+}
+
+function handleResize(data) {
+}
+
+function handleFallsSelectComplate(result) {
+  state.selectResult = result
+  emit('fallsSelect', result)
+}
+
+function handlePause() {
+  state.isPaused = true
+  emit('pause')
+}
+
+function handlePlay() {
+  state.isPaused = false
+  state.isPlayback = false
+  state.isPlaybackPaused = false
+  state.playbackData = null
+  state.playbackFrame = 0
+  state.playbackTotal = 0
+  emit('play')
+}
+
+function handlePlaybackStart(data) {
+  state.isPlayback = true
+  state.isPlaybackPaused = false
+  state.playbackTotal = data.total || 0
+  emit('playbackStart', data)
+}
+
+function handlePlaybackStop() {
+  state.isPlayback = false
+  state.isPlaybackPaused = false
+  state.playbackFrame = 0
+  state.playbackTotal = 0
+  state.playbackData = null
+  emit('playbackStop')
+}
+
+function handlePlaybackPause() {
+  state.isPlaybackPaused = true
+  emit('playbackPause')
+}
+
+function handlePlaybackResume() {
+  state.isPlaybackPaused = false
+  emit('playbackResume')
+}
+
+function fallsSelectPlayBack(data, item) {
+  if (!data || !data.selectData || data.selectData.length === 0) return
+  
+  pause()
+  
+  state.playbackData = data.selectData
+  state.playbackTotal = data.selectData.length
+  state.playbackFrame = 0
+  
+  baseFreqRef.value?.startPlayback(data.selectData, (frameInfo) => {
+    state.playbackFrame = frameInfo.frame
+    state.playbackTotal = frameInfo.total
+    emit('playbackFrame', frameInfo)
+  })
+}
+
+function togglePlaybackPause() {
+  if (!state.isPlayback) return
+  
+  if (state.isPlaybackPaused) {
+    resumePlayback()
+  } else {
+    pausePlayback()
+  }
+}
+
+function handleProgressInput(e) {
+  const frameIndex = parseInt(e.target.value)
+  seekPlayback(frameIndex)
+}
+
+function addMarker(marker) {
   baseFreqRef.value?.addMarker(marker)
-  markersList.value.push(marker)
-  emit('markerAdd', marker)
 }
 
-const removeMarker = (id) => {
+function removeMarker(id) {
   baseFreqRef.value?.removeMarker(id)
-  markersList.value = markersList.value.filter(m => m.id !== id)
-  emit('markerRemove', id)
 }
 
-const clearMarkers = () => {
+function clearMarkers() {
   baseFreqRef.value?.clearMarkers()
-  markersList.value = []
 }
 
-const setZoom = (zoomX, zoomY) => {
+function addRainMarker(marker) {
+  state.rainMarkers.push(marker)
+  baseFreqRef.value?.addRainMarker(marker)
+}
+
+function updateRainMarker(id, updates) {
+  const marker = state.rainMarkers.find(m => m.id === id)
+  if (marker) {
+    Object.assign(marker, updates)
+  }
+}
+
+function removeRainMarker(id) {
+  state.rainMarkers = state.rainMarkers.filter(m => m.id !== id)
+  baseFreqRef.value?.removeRainMarker(id)
+}
+
+function clearRainMarkers() {
+  state.rainMarkers = []
+  baseFreqRef.value?.clearRainMarkers()
+}
+
+function setZoom(zoomX, zoomY) {
   baseFreqRef.value?.setZoom(zoomX, zoomY)
 }
 
-const resetZoom = () => {
+function resetZoom() {
   baseFreqRef.value?.resetZoom()
 }
 
-const pause = () => {
+function pause() {
   baseFreqRef.value?.pause()
 }
 
-const play = () => {
+function play() {
   baseFreqRef.value?.play()
 }
 
-const startPlayback = (data, onFrame) => {
+function startPlayback(data, onFrame) {
   baseFreqRef.value?.startPlayback(data, onFrame)
 }
 
-const stopPlayback = () => {
-  baseFreqRef.value?.stopPlayback()
+function pausePlayback() {
+  baseFreqRef.value?.pausePlayback()
 }
 
-const clearWaterfall = () => {
+function resumePlayback() {
+  baseFreqRef.value?.resumePlayback()
+}
+
+function seekPlayback(frameIndex) {
+  baseFreqRef.value?.seekPlayback(frameIndex)
+  state.playbackFrame = frameIndex
+}
+
+function stopPlayback() {
+  baseFreqRef.value?.stopPlayback()
+  state.isPlayback = false
+  state.isPlaybackPaused = false
+  state.playbackData = null
+  state.playbackFrame = 0
+  state.playbackTotal = 0
+  play()
+}
+
+function clearWaterfall() {
   baseFreqRef.value?.clearWaterfall()
 }
 
-const setConfig = (config) => {
-  spectrumConfig.value = mergeDeep(spectrumConfig.value, config)
+function setConfig(config) {
   baseFreqRef.value?.setConfig(config)
 }
 
-const getInstance = () => {
+function setHoverInfoConfig(config) {
+  baseFreqRef.value?.setHoverInfoConfig(config)
+}
+
+function getInstance() {
   return baseFreqRef.value?.getInstance()
 }
 
-const startPolling = () => {
-  if (pollingTimer) clearInterval(pollingTimer)
-  
-  pollingTimer = setInterval(() => {
-    emit('polling', progressData.value)
-  }, props.pollingInterval)
+function getFreqForX(x) {
+  return baseFreqRef.value?.getFreqForX(x)
 }
 
-const stopPolling = () => {
-  if (pollingTimer) {
-    clearInterval(pollingTimer)
-    pollingTimer = null
-  }
+function getXForFreq(freq) {
+  return baseFreqRef.value?.getXForFreq(freq)
+}
+
+function getLevelForY(y) {
+  return baseFreqRef.value?.getLevelForY(y)
+}
+
+function getYForLevel(level) {
+  return baseFreqRef.value?.getYForLevel(level)
+}
+
+function addSignalBox(box) {
+  state.signalBoxes.push(box)
+  eventBus.emit('screenSignal', { type: 'boxSelect', data: box })
+}
+
+function clearSignalBoxes() {
+  state.signalBoxes = []
 }
 
 watch(() => props.markers, (newMarkers) => {
-  if (baseFreqRef.value) {
-    baseFreqRef.value.clearMarkers()
-    newMarkers.forEach(m => baseFreqRef.value.addMarker(m))
-    markersList.value = [...newMarkers]
-  }
-}, { deep: true })
-
-watch(() => props.highlightedSignals, (newSignals) => {
-  if (baseFreqRef.value) {
-    const instance = baseFreqRef.value.getInstance()
-    instance?.clearHighlightedSignals?.()
-    newSignals.forEach(s => instance?.addHighlightedSignal?.(s))
-    highlightedSignalsList.value = [...newSignals]
+  if (state.isReady) {
+    baseFreqRef.value?.clearMarkers()
+    newMarkers.forEach(m => baseFreqRef.value?.addMarker(m))
   }
 }, { deep: true })
 
 onMounted(() => {
-  initSpectrumConfig()
 })
 
 onBeforeUnmount(() => {
-  stopPolling()
-  stopPlayback()
+  eventBus.all.clear()
 })
 
 defineExpose({
@@ -482,74 +445,119 @@ defineExpose({
   addMarker,
   removeMarker,
   clearMarkers,
+  addRainMarker,
+  updateRainMarker,
+  removeRainMarker,
+  clearRainMarkers,
   setZoom,
   resetZoom,
   pause,
   play,
   startPlayback,
+  pausePlayback,
+  resumePlayback,
+  seekPlayback,
   stopPlayback,
   clearWaterfall,
   setConfig,
+  setHoverInfoConfig,
   getInstance,
-  isReady,
-  isPaused,
-  isPlayingBack,
-  markers: markersList,
-  highlightedSignals: highlightedSignalsList,
-  progressData
+  getFreqForX,
+  getXForFreq,
+  getLevelForY,
+  getYForLevel,
+  fallsSelectPlayBack,
+  addSignalBox,
+  clearSignalBoxes,
+  eventBus,
+  isPlaying
 })
 </script>
 
 <style scoped>
-.spectrum-modules-container {
+.spectrum-modules {
   width: 100%;
   height: 100%;
   position: relative;
 }
 
-.hover-popup {
-  position: fixed;
+.playback-controls {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
   background: rgba(0, 20, 40, 0.95);
-  border: 1px solid #1e4976;
+  border: 1px solid rgba(100, 150, 200, 0.5);
   border-radius: 6px;
-  padding: 10px;
-  min-width: 200px;
-  z-index: 9999;
-  transform: translate(0, -100%);
-  pointer-events: auto;
-}
-
-.hover-header {
+  color: #cce0ff;
   font-size: 12px;
-  font-weight: bold;
-  color: #66b2ff;
-  margin-bottom: 8px;
-  padding-bottom: 5px;
-  border-bottom: 1px solid #1e4976;
+  z-index: 100;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
-.hover-content {
+.playback-controls button {
+  padding: 5px 14px;
+  background: rgba(0, 100, 200, 0.5);
+  border: 1px solid rgba(100, 150, 200, 0.5);
+  border-radius: 4px;
+  color: #cce0ff;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.playback-controls button:hover {
+  background: rgba(0, 150, 255, 0.6);
+  border-color: rgba(100, 180, 255, 0.7);
+}
+
+.playback-progress {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
+  align-items: center;
+  gap: 10px;
 }
 
-.hover-label {
-  font-size: 11px;
-  color: #8892a6;
-  margin-right: 8px;
+.progress-slider {
+  width: 200px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(0, 50, 100, 0.5);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
 }
 
-.hover-value {
-  font-size: 11px;
-  color: #fff;
+.progress-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #66b3ff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.progress-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #66b3ff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.progress-text {
   font-family: monospace;
-}
-
-.hover-actions {
-  display: flex;
-  gap: 5px;
-  justify-content: flex-end;
+  color: #99c2ff;
+  min-width: 70px;
+  text-align: center;
 }
 </style>

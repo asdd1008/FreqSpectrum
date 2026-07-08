@@ -1,5 +1,5 @@
 {
-  "backendPort": 8080,
-  "frontendPort": 5174,
-  "updatedAt": 1783499113811
+  "backendPort": 8081,
+  "frontendPort": 8501,
+  "updatedAt": 1782885000000
 }

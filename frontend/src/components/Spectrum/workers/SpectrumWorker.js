@@ -13,25 +13,18 @@ self.onmessage = function(e) {
     case 'reset':
       reset()
       break
-    default:
-      break
   }
 }
 
-function updateHold(data) {
-  const { spectrum, maxHold, minHold, avgHold } = data
+function updateHold({ spectrum, maxHold, minHold, avgHold }) {
+  if (!spectrum || spectrum.length === 0) return
   
   if (!maxHoldData || maxHoldData.length !== spectrum.length) {
-    maxHoldData = new Float32Array(spectrum.length)
-    minHoldData = new Float32Array(spectrum.length)
-    avgData = new Float32Array(spectrum.length)
-    avgCount = 0
-    
-    for (let i = 0; i < spectrum.length; i++) {
-      maxHoldData[i] = -Infinity
-      minHoldData[i] = Infinity
-      avgData[i] = 0
-    }
+    maxHoldData = new Float32Array(spectrum)
+    minHoldData = new Float32Array(spectrum)
+    avgData = new Float32Array(spectrum)
+    avgCount = 1
+    return
   }
   
   if (maxHold) {
@@ -52,17 +45,18 @@ function updateHold(data) {
   
   if (avgHold) {
     avgCount++
+    const alpha = 1 / avgCount
     for (let i = 0; i < spectrum.length; i++) {
-      avgData[i] = avgData[i] + (spectrum[i] - avgData[i]) / avgCount
+      avgData[i] = avgData[i] * (1 - alpha) + spectrum[i] * alpha
     }
   }
   
   self.postMessage({
     type: 'holdLines',
     data: {
-      maxHold: maxHold ? new Float32Array(maxHoldData) : null,
-      minHold: minHold ? new Float32Array(minHoldData) : null,
-      avg: avgHold ? new Float32Array(avgData) : null
+      maxHold: maxHold ? maxHoldData : null,
+      minHold: minHold ? minHoldData : null,
+      avg: avgHold ? avgData : null
     }
   })
 }
