@@ -1,0 +1,98 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #0a1929;
+  color: #e0e0e0;
+}
+
+.spectrum-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #0a1929;
+}
+
+.spectrum-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: linear-gradient(180deg, #132f4c 0%, #0a1929 100%);
+  border-bottom: 1px solid #1e4976;
+}
+
+.spectrum-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.spectrum-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.spectrum-settings {
+  width: 320px;
+  border-left: 1px solid #1e4976;
+  background: #0d2137;
+  overflow-y: auto;
+}
+
+.canvas-wrapper {
+  position: relative;
+  background: #000;
+  border: 1px solid #1e4976;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.info-bar {
+  display: flex;
+  gap: 20px;
+  padding: 8px 12px;
+  background: #0d2137;
+  border: 1px solid #1e4976;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-label {
+  color: #66b2ff;
+}
+
+.info-value {
+  color: #fff;
+  font-family: 'Courier New', monospace;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+}

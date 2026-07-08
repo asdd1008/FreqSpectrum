@@ -1,0 +1,24 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "测试频谱数据组件",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asdd1008/FreqSpectrum.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/asdd1008/FreqSpectrum/issues"
+  },
+  "homepage": "https://github.com/asdd1008/FreqSpectrum#readme",
+  "dependencies": {
+    "playwright": "^1.61.1"
+  }
+}
