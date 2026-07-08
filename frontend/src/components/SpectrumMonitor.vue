@@ -436,79 +436,81 @@
           :append-to-body="true"
           class="spectrum-details-dialog"
         >
-          <div class="details-panel">
-            <div class="details-section">
-              <div class="section-title">
-                <span class="section-icon">&#x2699;</span>
-                频率信息
-              </div>
-              <div class="details-grid">
-                <div class="detail-card">
-                  <div class="detail-label">中心频率</div>
-                  <div class="detail-value">{{ formatFreq(instance.config.centerFreq) }}</div>
+          <div class="details-panel-scroll">
+            <div class="details-panel">
+              <div class="details-section">
+                <div class="section-title">
+                  <span class="section-icon">&#x2699;</span>
+                  频率信息
                 </div>
-                <div class="detail-card">
-                  <div class="detail-label">带宽</div>
-                  <div class="detail-value">{{ formatFreq(instance.config.span) }}</div>
-                </div>
-                <div class="detail-card">
-                  <div class="detail-label">起始频率</div>
-                  <div class="detail-value">{{ formatFreq(instance.config.startFreq) }}</div>
-                </div>
-                <div class="detail-card">
-                  <div class="detail-label">终止频率</div>
-                  <div class="detail-value">{{ formatFreq(instance.config.endFreq) }}</div>
-                </div>
-              </div>
-            </div>
-            <div class="details-divider"></div>
-            <div class="details-section">
-              <div class="section-title">
-                <span class="section-icon">&#x25B2;</span>
-                电平信息
-              </div>
-              <div class="details-grid">
-                <div class="detail-card">
-                  <div class="detail-label">参考电平</div>
-                  <div class="detail-value">{{ instance.config.refLevel.toFixed(1) }} dBm</div>
-                </div>
-                <div class="detail-card">
-                  <div class="detail-label">当前峰值</div>
-                  <div class="detail-value highlight">{{ instance.stats.max.toFixed(2) }} dBm</div>
-                </div>
-                <div class="detail-card">
-                  <div class="detail-label">当前谷值</div>
-                  <div class="detail-value">{{ instance.stats.min.toFixed(2) }} dBm</div>
-                </div>
-                <div class="detail-card">
-                  <div class="detail-label">平均值</div>
-                  <div class="detail-value">{{ instance.stats.avg.toFixed(2) }} dBm</div>
+                <div class="details-grid">
+                  <div class="detail-card">
+                    <div class="detail-label">中心频率</div>
+                    <div class="detail-value">{{ formatFreq(instance.config.centerFreq) }}</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">带宽</div>
+                    <div class="detail-value">{{ formatFreq(instance.config.span) }}</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">起始频率</div>
+                    <div class="detail-value">{{ formatFreq(instance.config.startFreq) }}</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">终止频率</div>
+                    <div class="detail-value">{{ formatFreq(instance.config.endFreq) }}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="details-divider"></div>
-            <div class="details-section">
-              <div class="section-title">
-                <span class="section-icon">&#x26A1;</span>
-                参数设置
+              <div class="details-divider"></div>
+              <div class="details-section">
+                <div class="section-title">
+                  <span class="section-icon">&#x25B2;</span>
+                  电平信息
+                </div>
+                <div class="details-grid">
+                  <div class="detail-card">
+                    <div class="detail-label">参考电平</div>
+                    <div class="detail-value">{{ instance.config.refLevel.toFixed(1) }} dBm</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">当前峰值</div>
+                    <div class="detail-value highlight">{{ instance.stats.max.toFixed(2) }} dBm</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">当前谷值</div>
+                    <div class="detail-value">{{ instance.stats.min.toFixed(2) }} dBm</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">平均值</div>
+                    <div class="detail-value">{{ instance.stats.avg.toFixed(2) }} dBm</div>
+                  </div>
+                </div>
               </div>
-              <div class="details-grid">
-                <div class="detail-card">
-                  <div class="detail-label">RBW</div>
-                  <div class="detail-value">{{ (instance.config.rbw / 1000).toFixed(1) }} kHz</div>
+              <div class="details-divider"></div>
+              <div class="details-section">
+                <div class="section-title">
+                  <span class="section-icon">&#x26A1;</span>
+                  参数设置
                 </div>
-                <div class="detail-card">
-                  <div class="detail-label">VBW</div>
-                  <div class="detail-value">{{ (instance.config.vbw / 1000).toFixed(1) }} kHz</div>
-                </div>
-                <div class="detail-card">
-                  <div class="detail-label">扫描时间</div>
-                  <div class="detail-value">{{ instance.config.sweepTime }} ms</div>
-                </div>
-                <div class="detail-card">
-                  <div class="detail-label">瀑布图</div>
-                  <div class="detail-value" :class="{ 'status-on': instance.config.waterfallEnabled, 'status-off': !instance.config.waterfallEnabled }">
-                    {{ instance.config.waterfallEnabled ? '开启' : '关闭' }}
+                <div class="details-grid">
+                  <div class="detail-card">
+                    <div class="detail-label">RBW</div>
+                    <div class="detail-value">{{ (instance.config.rbw / 1000).toFixed(1) }} kHz</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">VBW</div>
+                    <div class="detail-value">{{ (instance.config.vbw / 1000).toFixed(1) }} kHz</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">扫描时间</div>
+                    <div class="detail-value">{{ instance.config.sweepTime }} ms</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">瀑布图</div>
+                    <div class="detail-value" :class="{ 'status-on': instance.config.waterfallEnabled, 'status-off': !instance.config.waterfallEnabled }">
+                      {{ instance.config.waterfallEnabled ? '开启' : '关闭' }}
+                    </div>
                   </div>
                 </div>
               </div>
