@@ -1772,6 +1772,7 @@ onUnmounted(() => {
   width: 140px;
 }
 
+:deep(.el-select__wrapper),
 :deep(.el-select .el-input__wrapper),
 :deep(.el-select .el-input) {
   background: #0a1628 !important;
@@ -1779,20 +1780,24 @@ onUnmounted(() => {
   box-shadow: none !important;
 }
 
+:deep(.el-select__wrapper:hover),
 :deep(.el-select .el-input__wrapper:hover) {
   border-color: #3a8fd4 !important;
 }
 
+:deep(.el-select__wrapper.is-focus),
 :deep(.el-select .el-input__wrapper.is-focus) {
   border-color: #3a8fd4 !important;
   box-shadow: 0 0 0 2px rgba(58, 143, 212, 0.1) !important;
 }
 
+:deep(.el-select__input),
 :deep(.el-select .el-input__inner) {
   color: #fff !important;
   background: transparent !important;
 }
 
+:deep(.el-select__suffix),
 :deep(.el-select .el-input__suffix) {
   color: #66b2ff !important;
 }

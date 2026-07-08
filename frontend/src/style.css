@@ -478,6 +478,7 @@ html, body, #app {
   width: 140px;
 }
 
+.el-select__wrapper,
 .el-select .el-input__wrapper,
 .el-select .el-input,
 .el-input__wrapper {
@@ -487,17 +488,20 @@ html, body, #app {
   border-radius: 4px !important;
 }
 
+.el-select__wrapper:hover,
 .el-select .el-input__wrapper:hover,
 .el-input__wrapper:hover {
   border-color: #3a8fd4 !important;
 }
 
+.el-select__wrapper.is-focus,
 .el-select .el-input__wrapper.is-focus,
 .el-input__wrapper.is-focus {
   border-color: #3a8fd4 !important;
   box-shadow: 0 0 0 2px rgba(58, 143, 212, 0.1) !important;
 }
 
+.el-select__input,
 .el-select .el-input__inner,
 .el-input__inner {
   color: #fff !important;
@@ -505,11 +509,13 @@ html, body, #app {
   background: transparent !important;
 }
 
+.el-select__input::placeholder,
 .el-select .el-input__inner::placeholder,
 .el-input__inner::placeholder {
   color: #5a7a9a !important;
 }
 
+.el-select__suffix,
 .el-select .el-input__suffix,
 .el-input__suffix {
   color: #66b2ff !important;
