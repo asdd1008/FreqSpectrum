@@ -162,213 +162,404 @@
         </div>
 
         <!-- 设置弹窗 -->
-        <el-dialog 
-          v-model="instance.settingsDialogVisible" 
-          :title="instance.settingsDialogTitle" 
-          width="420px"
+        <el-dialog
+          v-model="instance.settingsDialogVisible"
+          :title="instance.settingsDialogTitle"
+          width="480px"
           :append-to-body="true"
           destroy-on-close
+          class="spectrum-settings-dialog"
         >
           <!-- 频率设置 -->
-          <div v-if="instance.activeSettingsTab === 'freqSettings'" class="settings-form">
-            <div class="form-item">
-              <label>中心频率 (MHz)</label>
-              <el-input-number v-model="instance.freqSettings.centerFreq" :min="1" :max="60000" :step="1" size="small" />
+          <div v-if="instance.activeSettingsTab === 'freqSettings'" class="settings-panel">
+            <div class="settings-section">
+              <div class="section-title">频率参数</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2699;</span>
+                    中心频率
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.centerFreq" :min="1" :max="60000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">MHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2194;</span>
+                    起始频率
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.startFreq" :min="1" :max="60000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">MHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2194;</span>
+                    终止频率
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.endFreq" :min="1" :max="60000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">MHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25A1;</span>
+                    频宽
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.span" :min="1" :max="60000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">MHz</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="form-item">
-              <label>起始频率 (MHz)</label>
-              <el-input-number v-model="instance.freqSettings.startFreq" :min="1" :max="60000" :step="1" size="small" />
-            </div>
-            <div class="form-item">
-              <label>终止频率 (MHz)</label>
-              <el-input-number v-model="instance.freqSettings.endFreq" :min="1" :max="60000" :step="1" size="small" />
-            </div>
-            <div class="form-item">
-              <label>频宽 (MHz)</label>
-              <el-input-number v-model="instance.freqSettings.span" :min="1" :max="60000" :step="1" size="small" />
-            </div>
-            <div class="form-item">
-              <label>RBW (kHz)</label>
-              <el-input-number v-model="instance.freqSettings.rbw" :min="1" :max="10000" :step="1" size="small" />
-            </div>
-            <div class="form-item">
-              <label>VBW (kHz)</label>
-              <el-input-number v-model="instance.freqSettings.vbw" :min="1" :max="10000" :step="1" size="small" />
+            <div class="settings-divider"></div>
+            <div class="settings-section">
+              <div class="section-title">分辨率带宽</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x26A1;</span>
+                    RBW
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.rbw" :min="1" :max="10000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">kHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x26A1;</span>
+                    VBW
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.vbw" :min="1" :max="10000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">kHz</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <!-- 电平设置 -->
-          <div v-if="instance.activeSettingsTab === 'levelSettings'" class="settings-form">
-            <div class="form-item">
-              <label>参考电平 (dBm)</label>
-              <el-input-number v-model="instance.levelSettings.refLevel" :min="-130" :max="30" :step="1" size="small" />
-            </div>
-            <div class="form-item">
-              <label>电平偏移 (dB)</label>
-              <el-input-number v-model="instance.levelSettings.levelOffset" :min="-100" :max="100" :step="0.1" size="small" />
-            </div>
-            <div class="form-item">
-              <label>衰减 (dB)</label>
-              <el-input-number v-model="instance.levelSettings.attenuation" :min="0" :max="70" :step="1" size="small" />
-            </div>
-            <div class="form-item">
-              <label>前置放大器</label>
-              <el-switch v-model="instance.levelSettings.preAmpEnabled" size="small" />
+          <div v-if="instance.activeSettingsTab === 'levelSettings'" class="settings-panel">
+            <div class="settings-section">
+              <div class="section-title">电平参数</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25B2;</span>
+                    参考电平
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.levelSettings.refLevel" :min="-130" :max="30" :step="1" size="small" controls-position="right" />
+                    <span class="unit">dBm</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x21C5;</span>
+                    电平偏移
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.levelSettings.levelOffset" :min="-100" :max="100" :step="0.1" size="small" controls-position="right" />
+                    <span class="unit">dB</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x26A0;</span>
+                    衰减
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.levelSettings.attenuation" :min="0" :max="70" :step="1" size="small" controls-position="right" />
+                    <span class="unit">dB</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x1F50A;</span>
+                    前置放大器
+                  </label>
+                  <div class="form-control">
+                    <el-switch
+                      v-model="instance.levelSettings.preAmpEnabled"
+                      active-text="开启"
+                      inactive-text="关闭"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <!-- 显示设置 -->
-          <div v-if="instance.activeSettingsTab === 'displaySettings'" class="settings-form">
-            <div class="form-item">
-              <label>显示线条</label>
-              <el-select v-model="instance.displaySettings.lineStyle" size="small">
-                <el-option label="实线" value="solid" />
-                <el-option label="虚线" value="dashed" />
-                <el-option label="点线" value="dotted" />
-              </el-select>
-            </div>
-            <div class="form-item">
-              <label>线条宽度</label>
-              <el-input-number v-model="instance.displaySettings.lineWidth" :min="0.5" :max="5" :step="0.5" size="small" />
-            </div>
-            <div class="form-item">
-              <label>填充区域</label>
-              <el-switch v-model="instance.displaySettings.fillEnabled" size="small" />
-            </div>
-            <div class="form-item">
-              <label>检测模式</label>
-              <el-select v-model="instance.displaySettings.detectorMode" size="small">
-                <el-option label="自动" value="auto" />
-                <el-option label="正峰值" value="positive" />
-                <el-option label="负峰值" value="negative" />
-                <el-option label="采样" value="sample" />
-              </el-select>
-            </div>
-            <div class="form-item">
-              <label>平均次数</label>
-              <el-input-number v-model="instance.displaySettings.avgCount" :min="1" :max="1000" :step="1" size="small" />
+          <div v-if="instance.activeSettingsTab === 'displaySettings'" class="settings-panel">
+            <div class="settings-section">
+              <div class="section-title">显示参数</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2500;</span>
+                    显示线条
+                  </label>
+                  <div class="form-control">
+                    <el-select v-model="instance.displaySettings.lineStyle" size="small">
+                      <el-option label="实线" value="solid" />
+                      <el-option label="虚线" value="dashed" />
+                      <el-option label="点线" value="dotted" />
+                    </el-select>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25CB;</span>
+                    线条宽度
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.displaySettings.lineWidth" :min="0.5" :max="5" :step="0.5" size="small" controls-position="right" />
+                    <span class="unit">px</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25A0;</span>
+                    填充区域
+                  </label>
+                  <div class="form-control">
+                    <el-switch
+                      v-model="instance.displaySettings.fillEnabled"
+                      active-text="开启"
+                      inactive-text="关闭"
+                    />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x26A1;</span>
+                    检测模式
+                  </label>
+                  <div class="form-control">
+                    <el-select v-model="instance.displaySettings.detectorMode" size="small">
+                      <el-option label="自动" value="auto" />
+                      <el-option label="正峰值" value="positive" />
+                      <el-option label="负峰值" value="negative" />
+                      <el-option label="采样" value="sample" />
+                    </el-select>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2211;</span>
+                    平均次数
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.displaySettings.avgCount" :min="1" :max="1000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">次</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <!-- 渲染设置 -->
-          <div v-if="instance.activeSettingsTab === 'rendererSettings'" class="settings-form">
-            <div class="form-item">
-              <label>扫描时间 (ms)</label>
-              <el-input-number v-model="instance.rendererSettings.sweepTime" :min="10" :max="10000" :step="10" size="small" />
-            </div>
-            <div class="form-item">
-              <label>频率分辨率 (kHz)</label>
-              <el-input-number v-model="instance.rendererSettings.freqResolution" :min="1" :max="10000" :step="1" size="small" />
-            </div>
-            <div class="form-item">
-              <label>扫描模式</label>
-              <el-select v-model="instance.rendererSettings.sweepMode" size="small">
-                <el-option label="连续扫描" value="sweep" />
-                <el-option label="单次扫描" value="single" />
-                <el-option label="FFT" value="fft" />
-              </el-select>
-            </div>
-            <div class="form-item">
-              <label>增益 (dB)</label>
-              <el-input-number v-model="instance.rendererSettings.gain" :min="0" :max="50" :step="1" size="small" />
+          <div v-if="instance.activeSettingsTab === 'rendererSettings'" class="settings-panel">
+            <div class="settings-section">
+              <div class="section-title">渲染参数</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x23F1;</span>
+                    扫描时间
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.rendererSettings.sweepTime" :min="10" :max="10000" :step="10" size="small" controls-position="right" />
+                    <span class="unit">ms</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2699;</span>
+                    频率分辨率
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.rendererSettings.freqResolution" :min="1" :max="10000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">kHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x1F504;</span>
+                    扫描模式
+                  </label>
+                  <div class="form-control">
+                    <el-select v-model="instance.rendererSettings.sweepMode" size="small">
+                      <el-option label="连续扫描" value="sweep" />
+                      <el-option label="单次扫描" value="single" />
+                      <el-option label="FFT" value="fft" />
+                    </el-select>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25B2;</span>
+                    增益
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.rendererSettings.gain" :min="0" :max="50" :step="1" size="small" controls-position="right" />
+                    <span class="unit">dB</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <template #footer>
-            <el-button size="small" @click="instance.settingsDialogVisible = false">取消</el-button>
-            <el-button size="small" type="primary" @click="applySettings(instance)">应用</el-button>
+            <div class="dialog-footer">
+              <el-button size="small" @click="instance.settingsDialogVisible = false">取消</el-button>
+              <el-button size="small" type="primary" @click="applySettings(instance)">应用设置</el-button>
+            </div>
           </template>
         </el-dialog>
 
         <!-- 详情弹窗 -->
-        <el-dialog 
-          v-model="instance.detailsDialogVisible" 
-          title="频谱详情" 
-          width="480px"
+        <el-dialog
+          v-model="instance.detailsDialogVisible"
+          title="频谱详情"
+          width="520px"
           :append-to-body="true"
+          class="spectrum-details-dialog"
         >
-          <div class="details-content">
-            <div class="details-row">
-              <span class="details-label">中心频率</span>
-              <span class="details-value">{{ formatFreq(instance.config.centerFreq) }}</span>
+          <div class="details-panel">
+            <div class="details-section">
+              <div class="section-title">
+                <span class="section-icon">&#x2699;</span>
+                频率信息
+              </div>
+              <div class="details-grid">
+                <div class="detail-card">
+                  <div class="detail-label">中心频率</div>
+                  <div class="detail-value">{{ formatFreq(instance.config.centerFreq) }}</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">带宽</div>
+                  <div class="detail-value">{{ formatFreq(instance.config.span) }}</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">起始频率</div>
+                  <div class="detail-value">{{ formatFreq(instance.config.startFreq) }}</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">终止频率</div>
+                  <div class="detail-value">{{ formatFreq(instance.config.endFreq) }}</div>
+                </div>
+              </div>
             </div>
-            <div class="details-row">
-              <span class="details-label">带宽</span>
-              <span class="details-value">{{ formatFreq(instance.config.span) }}</span>
+            <div class="details-divider"></div>
+            <div class="details-section">
+              <div class="section-title">
+                <span class="section-icon">&#x25B2;</span>
+                电平信息
+              </div>
+              <div class="details-grid">
+                <div class="detail-card">
+                  <div class="detail-label">参考电平</div>
+                  <div class="detail-value">{{ instance.config.refLevel.toFixed(1) }} dBm</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">当前峰值</div>
+                  <div class="detail-value highlight">{{ instance.stats.max.toFixed(2) }} dBm</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">当前谷值</div>
+                  <div class="detail-value">{{ instance.stats.min.toFixed(2) }} dBm</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">平均值</div>
+                  <div class="detail-value">{{ instance.stats.avg.toFixed(2) }} dBm</div>
+                </div>
+              </div>
             </div>
-            <div class="details-row">
-              <span class="details-label">起始频率</span>
-              <span class="details-value">{{ formatFreq(instance.config.startFreq) }}</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">终止频率</span>
-              <span class="details-value">{{ formatFreq(instance.config.endFreq) }}</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">参考电平</span>
-              <span class="details-value">{{ instance.config.refLevel.toFixed(1) }} dBm</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">当前峰值</span>
-              <span class="details-value highlight">{{ instance.stats.max.toFixed(2) }} dBm</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">当前谷值</span>
-              <span class="details-value">{{ instance.stats.min.toFixed(2) }} dBm</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">平均值</span>
-              <span class="details-value">{{ instance.stats.avg.toFixed(2) }} dBm</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">RBW</span>
-              <span class="details-value">{{ (instance.config.rbw / 1000).toFixed(1) }} kHz</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">VBW</span>
-              <span class="details-value">{{ (instance.config.vbw / 1000).toFixed(1) }} kHz</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">扫描时间</span>
-              <span class="details-value">{{ instance.config.sweepTime }} ms</span>
-            </div>
-            <div class="details-row">
-              <span class="details-label">瀑布图</span>
-              <span class="details-value">{{ instance.config.waterfallEnabled ? '开启' : '关闭' }}</span>
+            <div class="details-divider"></div>
+            <div class="details-section">
+              <div class="section-title">
+                <span class="section-icon">&#x26A1;</span>
+                参数设置
+              </div>
+              <div class="details-grid">
+                <div class="detail-card">
+                  <div class="detail-label">RBW</div>
+                  <div class="detail-value">{{ (instance.config.rbw / 1000).toFixed(1) }} kHz</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">VBW</div>
+                  <div class="detail-value">{{ (instance.config.vbw / 1000).toFixed(1) }} kHz</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">扫描时间</div>
+                  <div class="detail-value">{{ instance.config.sweepTime }} ms</div>
+                </div>
+                <div class="detail-card">
+                  <div class="detail-label">瀑布图</div>
+                  <div class="detail-value" :class="{ 'status-on': instance.config.waterfallEnabled, 'status-off': !instance.config.waterfallEnabled }">
+                    {{ instance.config.waterfallEnabled ? '开启' : '关闭' }}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <template #footer>
-            <el-button size="small" type="primary" @click="instance.detailsDialogVisible = false">关闭</el-button>
+            <div class="dialog-footer">
+              <el-button size="small" type="primary" @click="instance.detailsDialogVisible = false">关闭</el-button>
+            </div>
           </template>
         </el-dialog>
         <!-- 快照预览弹窗 -->
-        <el-dialog 
-          v-model="instance.snapshotDialogVisible" 
-          title="快照预览" 
-          width="600px"
+        <el-dialog
+          v-model="instance.snapshotDialogVisible"
+          title="快照预览"
+          width="640px"
           :append-to-body="true"
-          class="snapshot-dialog"
+          class="spectrum-snapshot-dialog"
         >
-          <div class="snapshot-preview">
-            <img :src="instance.snapshotUrl" alt="快照预览" class="snapshot-image">
+          <div class="snapshot-panel">
+            <div class="snapshot-image-wrapper">
+              <img :src="instance.snapshotUrl" alt="快照预览" class="snapshot-image">
+            </div>
+            <div class="snapshot-info">
+              <span class="snapshot-time">{{ new Date().toLocaleString() }}</span>
+            </div>
           </div>
           <template #footer>
-            <el-button size="small" @click="instance.snapshotDialogVisible = false">关闭</el-button>
-            <el-button size="small" type="primary" @click="downloadSnapshot(instance)">下载</el-button>
+            <div class="dialog-footer">
+              <el-button size="small" @click="instance.snapshotDialogVisible = false">关闭</el-button>
+              <el-button size="small" type="primary" @click="downloadSnapshot(instance)">
+                <span class="btn-icon">&#x2B07;</span> 下载快照
+              </el-button>
+            </div>
           </template>
         </el-dialog>
-        
+
         <!-- 删除确认弹窗 -->
-        <el-dialog 
-          v-model="instance.deleteConfirmVisible" 
-          title="确认删除" 
-          width="350px"
+        <el-dialog
+          v-model="instance.deleteConfirmVisible"
+          title="确认删除"
+          width="400px"
           :append-to-body="true"
-          class="delete-confirm-dialog"
+          class="spectrum-delete-dialog"
         >
-          <div class="delete-confirm-content">
-            <p>确定要删除此频谱组件吗？</p>
-            <p class="delete-warning">此操作无法撤销。</p>
+          <div class="delete-panel">
+            <div class="delete-icon">&#x26A0;</div>
+            <div class="delete-message">
+              <p class="delete-title">确定要删除此频谱组件吗？</p>
+              <p class="delete-warning">删除后该组件的所有数据将被清除，此操作无法撤销。</p>
+            </div>
           </div>
           <template #footer>
-            <el-button size="small" @click="instance.deleteConfirmVisible = false">取消</el-button>
-            <el-button size="small" type="danger" @click="confirmDelete(instance)">确认删除</el-button>
+            <div class="dialog-footer">
+              <el-button size="small" @click="instance.deleteConfirmVisible = false">取消</el-button>
+              <el-button size="small" type="danger" @click="confirmDelete(instance)">确认删除</el-button>
+            </div>
           </template>
         </el-dialog>
       </div>
@@ -391,9 +582,16 @@ const instancesContainer = ref(null);
 
 const getInstanceStyle = (instance, index) => {
   if (instance.isFullscreen) {
-    return { height: '100%', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000 };
+    return {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      zIndex: 9999
+    };
   }
-  const count = instances.value.filter(i => !i.isFullscreen).length;
+  const count = instances.value.length;
   if (count <= 1) {
     return { height: '100%' };
   }
@@ -1058,13 +1256,12 @@ onUnmounted(() => {
 }
 
 .spectrum-instance.fullscreen {
-  position: absolute;
+  position: fixed !important;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  height: 100% !important;
-  z-index: 1000;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
 }
 
 .instance-toolbar {
@@ -1132,37 +1329,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
-.snapshot-preview {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  background: #0a1628;
-}
-
-.snapshot-image {
-  max-width: 100%;
-  max-height: 400px;
-  border: 1px solid #1e4976;
-  border-radius: 4px;
-}
-
-.delete-confirm-content {
-  padding: 20px;
-  text-align: center;
-}
-
-.delete-confirm-content p {
-  color: #c0c4cc;
-  font-size: 14px;
-  margin-bottom: 10px;
-}
-
-.delete-warning {
-  color: #d9363e !important;
-  font-size: 13px !important;
-}
-
 .info-row {
   display: flex;
   align-items: center;
@@ -1210,123 +1376,31 @@ onUnmounted(() => {
   color: #8ab4d8;
 }
 
-/* 设置表单样式 */
-.settings-form {
-  padding: 0;
-}
+/* ============================================
+   统一弹窗样式 - 暗色科技风格
+   ============================================ */
 
-.form-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(58, 143, 212, 0.12);
-}
-
-.form-item:last-child {
-  border-bottom: none;
-}
-
-.form-item label {
-  color: #66b2ff;
-  font-size: 13px;
-  min-width: 120px;
-  font-weight: 500;
-}
-
-/* 详情弹窗样式 */
-.details-content {
-  padding: 0;
-}
-
-.details-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(58, 143, 212, 0.12);
-}
-
-.details-row:last-child {
-  border-bottom: none;
-}
-
-.details-label {
-  color: #66b2ff;
-  font-size: 13px;
-}
-
-.details-value {
-  color: #ffffff;
-  font-size: 14px;
-  font-family: 'Courier New', monospace;
-}
-
-.details-value.highlight {
-  color: #00ff88;
-  font-weight: bold;
-}
-
-:deep(.el-button) {
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 3px;
-}
-
-:deep(.el-button--small) {
-  padding: 4px 12px;
-  font-size: 12px;
-  border-radius: 3px;
-}
-
-:deep(.el-button--primary) {
-  background: linear-gradient(180deg, #2d7dd2 0%, #1a5fa0 100%);
-  border-color: #3a8fd4;
-  border-radius: 3px;
-}
-
-:deep(.el-button--primary:hover) {
-  background: linear-gradient(180deg, #3a8fd4 0%, #2d7dd2 100%);
-  border-color: #4da6e8;
-}
-
-:deep(.el-button--danger) {
-  background: linear-gradient(180deg, #d9363e 0%, #b92b33 100%);
-  border-color: #dc484f;
-  border-radius: 3px;
-}
-
-:deep(.el-button--danger:hover) {
-  background: linear-gradient(180deg, #e6454c 0%, #d9363e 100%);
-  border-color: #e85a61;
-}
-
-:deep(.el-select) {
-  --el-select-font-size: 12px;
-}
-
-:deep(.el-dropdown) {
-  display: inline-block;
-}
-
+/* 弹窗公共样式 */
 :deep(.el-dialog) {
   background: linear-gradient(180deg, #0d1f35 0%, #0a1628 100%);
   border: 1px solid #1e4976;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
 }
 
 :deep(.el-dialog__header) {
-  border-bottom: 1px solid #1e4976;
-  padding: 16px 24px;
+  border-bottom: 1px solid rgba(30, 73, 118, 0.6);
+  padding: 18px 24px;
   background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
-  border-radius: 8px 8px 0 0;
+  margin-right: 0;
 }
 
 :deep(.el-dialog__title) {
   color: #8ab4d8;
   font-size: 16px;
   font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 :deep(.el-dialog__body) {
@@ -1336,14 +1410,340 @@ onUnmounted(() => {
 }
 
 :deep(.el-dialog__footer) {
-  border-top: 1px solid #1e4976;
-  padding: 14px 24px;
-  background: #0f2a44;
-  border-radius: 0 0 8px 8px;
+  border-top: 1px solid rgba(30, 73, 118, 0.6);
+  padding: 16px 24px;
+  background: linear-gradient(180deg, #0f2a44 0%, #0d1f35 100%);
 }
 
+:deep(.el-dialog__headerbtn) {
+  top: 18px;
+  right: 20px;
+}
+
+:deep(.el-dialog__close) {
+  color: #66b2ff;
+  font-size: 18px;
+}
+
+:deep(.el-dialog__close:hover) {
+  color: #8ab4d8;
+}
+
+:deep(.el-overlay) {
+  background-color: rgba(0, 10, 30, 0.75);
+}
+
+/* 对话框底部按钮区 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-icon {
+  margin-right: 4px;
+}
+
+/* ============================================
+   设置弹窗样式
+   ============================================ */
+.settings-panel {
+  padding: 20px 24px;
+}
+
+.settings-section {
+  margin-bottom: 16px;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  color: #66b2ff;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding-left: 8px;
+  border-left: 3px solid #3a8fd4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.settings-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(58, 143, 212, 0.3) 50%, transparent 100%);
+  margin: 16px 0;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(15, 42, 68, 0.5);
+  border: 1px solid rgba(30, 73, 118, 0.3);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.form-row:hover {
+  background: rgba(15, 42, 68, 0.8);
+  border-color: rgba(58, 143, 212, 0.4);
+}
+
+.form-label {
+  color: #8ab4d8;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label-icon {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.form-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unit {
+  color: #5a7a9a;
+  font-size: 12px;
+  min-width: 36px;
+  text-align: left;
+}
+
+/* ============================================
+   详情弹窗样式 - 卡片式布局
+   ============================================ */
+.details-panel {
+  padding: 20px 24px;
+}
+
+.details-section {
+  margin-bottom: 16px;
+}
+
+.details-section:last-child {
+  margin-bottom: 0;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.detail-card {
+  background: rgba(15, 42, 68, 0.5);
+  border: 1px solid rgba(30, 73, 118, 0.3);
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: all 0.2s ease;
+}
+
+.detail-card:hover {
+  background: rgba(15, 42, 68, 0.8);
+  border-color: rgba(58, 143, 212, 0.4);
+  transform: translateY(-1px);
+}
+
+.detail-label {
+  color: #5a7a9a;
+  font-size: 12px;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+.detail-value {
+  color: #ffffff;
+  font-size: 15px;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.detail-value.highlight {
+  color: #00ff88;
+  font-weight: 600;
+}
+
+.detail-value.status-on {
+  color: #00ff88;
+}
+
+.detail-value.status-off {
+  color: #ff6b6b;
+}
+
+.details-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(58, 143, 212, 0.3) 50%, transparent 100%);
+  margin: 16px 0;
+}
+
+/* ============================================
+   快照弹窗样式
+   ============================================ */
+.snapshot-panel {
+  padding: 20px 24px;
+}
+
+.snapshot-image-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(30, 73, 118, 0.4);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.snapshot-image {
+  max-width: 100%;
+  max-height: 380px;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.snapshot-info {
+  text-align: center;
+  color: #5a7a9a;
+  font-size: 12px;
+}
+
+.snapshot-time {
+  font-family: 'Courier New', monospace;
+}
+
+/* ============================================
+   删除确认弹窗样式
+   ============================================ */
+.delete-panel {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.delete-icon {
+  font-size: 48px;
+  color: #d9363e;
+  opacity: 0.8;
+}
+
+.delete-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.delete-title {
+  color: #c0c4cc;
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.delete-warning {
+  color: #d9363e;
+  font-size: 13px;
+  margin: 0;
+  opacity: 0.8;
+}
+
+/* ============================================
+   Element Plus 组件覆盖样式
+   ============================================ */
+
+:deep(.el-button) {
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+:deep(.el-button--small) {
+  padding: 5px 14px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+:deep(.el-button--primary) {
+  background: linear-gradient(180deg, #2d7dd2 0%, #1a5fa0 100%);
+  border-color: #3a8fd4;
+}
+
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(180deg, #3a8fd4 0%, #2d7dd2 100%);
+  border-color: #4da6e8;
+  box-shadow: 0 2px 8px rgba(45, 125, 210, 0.3);
+}
+
+:deep(.el-button--danger) {
+  background: linear-gradient(180deg, #d9363e 0%, #b92b33 100%);
+  border-color: #dc484f;
+}
+
+:deep(.el-button--danger:hover) {
+  background: linear-gradient(180deg, #e6454c 0%, #d9363e 100%);
+  border-color: #e85a61;
+  box-shadow: 0 2px 8px rgba(217, 54, 62, 0.3);
+}
+
+:deep(.el-button--default) {
+  background: rgba(15, 42, 68, 0.6);
+  border-color: #1e4976;
+  color: #8ab4d8;
+}
+
+:deep(.el-button--default:hover) {
+  background: rgba(15, 42, 68, 0.9);
+  border-color: #3a8fd4;
+  color: #8ab4d8;
+}
+
+/* Input Number */
 :deep(.el-input-number) {
-  width: 130px;
+  width: 120px;
+}
+
+:deep(.el-input-number .el-input__wrapper) {
+  background: #0a1628;
+  border: 1px solid #1e4976;
+  box-shadow: none;
+  border-radius: 4px;
+  padding: 0 8px;
+}
+
+:deep(.el-input-number .el-input__wrapper:hover) {
+  border-color: #3a8fd4;
+}
+
+:deep(.el-input-number .el-input__inner) {
+  color: #fff;
+  text-align: center;
+  font-family: 'Courier New', monospace;
 }
 
 :deep(.el-input-number__decrease),
@@ -1351,7 +1751,6 @@ onUnmounted(() => {
   background: #153a5c;
   border-color: #1e4976;
   color: #66b2ff;
-  border-radius: 0;
 }
 
 :deep(.el-input-number__decrease:hover),
@@ -1360,57 +1759,69 @@ onUnmounted(() => {
   color: #fff;
 }
 
-:deep(.el-input-number__input) {
-  background: #0f2a44;
-  border-color: #1e4976;
-  color: #fff;
+/* Select */
+:deep(.el-select) {
+  width: 140px;
 }
 
-:deep(.el-select) {
-  width: 130px;
+:deep(.el-select .el-input__wrapper) {
+  background: #0a1628;
+  border: 1px solid #1e4976;
+  box-shadow: none;
+}
+
+:deep(.el-select .el-input__wrapper:hover) {
+  border-color: #3a8fd4;
 }
 
 :deep(.el-select .el-input__inner) {
-  background: #0f2a44;
-  border-color: #1e4976;
   color: #fff;
 }
 
 :deep(.el-select-dropdown) {
   background: #0f2a44;
-  border-color: #1e4976;
+  border: 1px solid #1e4976;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 :deep(.el-select-dropdown__item) {
   color: #66b2ff;
+  padding: 10px 16px;
+  font-size: 13px;
+}
+
+:deep(.el-select-dropdown__item:hover) {
+  background: rgba(58, 143, 212, 0.15);
 }
 
 :deep(.el-select-dropdown__item.selected) {
   color: #8ab4d8;
-  background: rgba(58, 143, 212, 0.2);
+  background: rgba(58, 143, 212, 0.25);
+  font-weight: 500;
 }
 
+/* Switch */
 :deep(.el-switch__core) {
   background: #1e4976;
+  border-color: #1e4976;
 }
 
 :deep(.el-switch.is-checked .el-switch__core) {
   background: #2d7dd2;
+  border-color: #2d7dd2;
 }
 
-:deep(.el-form-item__label) {
-  color: #66b2ff;
+:deep(.el-switch__label) {
+  color: #5a7a9a;
+  font-size: 12px;
 }
 
-:deep(.el-dialog__close) {
-  color: #66b2ff;
-}
-
-:deep(.el-dialog__close:hover) {
+:deep(.el-switch__label.is-active) {
   color: #8ab4d8;
 }
 
-/* Dropdown 菜单样式 */
+/* Dropdown */
 :deep(.el-dropdown-menu) {
   background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
   border: 1px solid #1e4976;
@@ -1430,59 +1841,13 @@ onUnmounted(() => {
   color: #8ab4d8;
 }
 
-/* 输入框样式 */
-:deep(.el-input__wrapper) {
-  background: #0f2a44;
-  border: 1px solid #1e4976;
-  border-radius: 4px;
-  box-shadow: none;
-}
-
-:deep(.el-input__wrapper:hover) {
-  border-color: #3a8fd4;
-}
-
-:deep(.el-input__inner) {
-  color: #fff;
-}
-
-:deep(.el-input__inner::placeholder) {
-  color: #5a7a9a;
-}
-
-/* Select 下拉面板 */
-:deep(.el-select-dropdown) {
-  background: #0f2a44;
-  border: 1px solid #1e4976;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-:deep(.el-select-dropdown__item) {
-  color: #66b2ff;
-  padding: 10px 16px;
-}
-
-:deep(.el-select-dropdown__item:hover) {
-  background: rgba(58, 143, 212, 0.15);
-}
-
-:deep(.el-select-dropdown__item.selected) {
-  color: #8ab4d8;
-  background: rgba(58, 143, 212, 0.25);
-  font-weight: 500;
-}
-
-:deep(.el-popper.is-light) {
-  background: #0f2a44;
-  border: 1px solid #1e4976;
-}
-
-/* Message 提示样式 */
+/* Message */
 :deep(.el-message) {
   background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
   border: 1px solid #1e4976;
   color: #8ab4d8;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 :deep(.el-message--success) {
@@ -1500,17 +1865,7 @@ onUnmounted(() => {
   border-color: #6a2d2d;
 }
 
-/* 额外的弹窗内容样式 */
-:deep(.el-dialog__headerbtn) {
-  top: 16px;
-  right: 20px;
-}
-
-:deep(.el-overlay) {
-  background-color: rgba(0, 10, 30, 0.7);
-}
-
-/* 滚动条样式 */
+/* 滚动条 */
 .spectrum-instances::-webkit-scrollbar {
   width: 8px;
 }
