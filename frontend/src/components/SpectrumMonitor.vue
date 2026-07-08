@@ -278,6 +278,7 @@
 
         <!-- 详情弹窗 -->
         <el-dialog 
+          v-if="instance?.detailsDialogVisible"
           v-model="instance.detailsDialogVisible" 
           title="频谱详情" 
           width="480px"
@@ -339,7 +340,7 @@
         </el-dialog>
       </div>
       
-      <el-dialog v-if="instance.snapshotDialogVisible" v-model="instance.snapshotDialogVisible" title="快照预览" width="600px" class="snapshot-dialog">
+      <el-dialog v-if="instance?.snapshotDialogVisible" v-model="instance.snapshotDialogVisible" title="快照预览" width="600px" class="snapshot-dialog">
         <div class="snapshot-preview">
           <img :src="instance.snapshotUrl" alt="快照预览" class="snapshot-image">
         </div>
@@ -349,7 +350,7 @@
         </template>
       </el-dialog>
       
-      <el-dialog v-if="instance.deleteConfirmVisible" v-model="instance.deleteConfirmVisible" title="确认删除" width="350px" class="delete-confirm-dialog">
+      <el-dialog v-if="instance?.deleteConfirmVisible" v-model="instance.deleteConfirmVisible" title="确认删除" width="350px" class="delete-confirm-dialog">
         <div class="delete-confirm-content">
           <p>确定要删除此频谱组件吗？</p>
           <p class="delete-warning">此操作无法撤销。</p>
