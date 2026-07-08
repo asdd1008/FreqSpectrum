@@ -1069,18 +1069,25 @@ const confirmDelete = (instance) => {
   ElMessage.success('已删除频谱组件');
 };
 
+let savedScrollTop = 0;
+
 const toggleFullscreen = (instance) => {
-  // 如果要进入全屏，先取消其他组件的全屏状态
   if (!instance.isFullscreen) {
     instances.value.forEach(i => {
       if (i.id !== instance.id && i.isFullscreen) {
         i.isFullscreen = false;
       }
     });
+    if (instancesContainer.value) {
+      savedScrollTop = instancesContainer.value.scrollTop;
+    }
   }
   instance.isFullscreen = !instance.isFullscreen;
   nextTick(() => {
     handleResize();
+    if (!instance.isFullscreen && instancesContainer.value) {
+      instancesContainer.value.scrollTop = savedScrollTop;
+    }
   });
 };
 
