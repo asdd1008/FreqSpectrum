@@ -12,6 +12,555 @@ html, body, #app {
   color: #e0e0e0;
 }
 
+/* ============================================
+   全局弹窗样式 - 暗色科技风格
+   ============================================ */
+
+/* Dialog 公共样式 */
+.el-dialog {
+  background: linear-gradient(180deg, #0d1f35 0%, #0a1628 100%) !important;
+  border: 1px solid #1e4976 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+  overflow: hidden;
+}
+
+.el-dialog__header {
+  border-bottom: 1px solid rgba(30, 73, 118, 0.6) !important;
+  padding: 18px 24px !important;
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%) !important;
+  margin-right: 0 !important;
+}
+
+.el-dialog__title {
+  color: #8ab4d8 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+}
+
+.el-dialog__body {
+  padding: 0 !important;
+  color: #c0c4cc;
+  background: #0a1628;
+}
+
+.el-dialog__footer {
+  border-top: 1px solid rgba(30, 73, 118, 0.6) !important;
+  padding: 16px 24px !important;
+  background: linear-gradient(180deg, #0f2a44 0%, #0d1f35 100%) !important;
+}
+
+.el-dialog__headerbtn {
+  top: 18px !important;
+  right: 20px !important;
+}
+
+.el-dialog__close {
+  color: #66b2ff !important;
+  font-size: 18px !important;
+}
+
+.el-dialog__close:hover {
+  color: #8ab4d8 !important;
+}
+
+.el-overlay {
+  background-color: rgba(0, 10, 30, 0.75) !important;
+}
+
+/* ============================================
+   设置弹窗样式
+   ============================================ */
+.settings-panel {
+  padding: 20px 24px;
+}
+
+.settings-section {
+  margin-bottom: 16px;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  color: #66b2ff;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding-left: 8px;
+  border-left: 3px solid #3a8fd4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-icon {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.settings-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(58, 143, 212, 0.3) 50%, transparent 100%);
+  margin: 16px 0;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(15, 42, 68, 0.5);
+  border: 1px solid rgba(30, 73, 118, 0.3);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.form-row:hover {
+  background: rgba(15, 42, 68, 0.8);
+  border-color: rgba(58, 143, 212, 0.4);
+}
+
+.form-label {
+  color: #8ab4d8;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label-icon {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.form-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unit {
+  color: #5a7a9a;
+  font-size: 12px;
+  min-width: 36px;
+  text-align: left;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-icon {
+  margin-right: 4px;
+}
+
+/* ============================================
+   详情弹窗样式 - 卡片式布局
+   ============================================ */
+.details-panel {
+  padding: 20px 24px;
+}
+
+.details-section {
+  margin-bottom: 16px;
+}
+
+.details-section:last-child {
+  margin-bottom: 0;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.detail-card {
+  background: rgba(15, 42, 68, 0.5);
+  border: 1px solid rgba(30, 73, 118, 0.3);
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: all 0.2s ease;
+}
+
+.detail-card:hover {
+  background: rgba(15, 42, 68, 0.8);
+  border-color: rgba(58, 143, 212, 0.4);
+  transform: translateY(-1px);
+}
+
+.detail-label {
+  color: #5a7a9a;
+  font-size: 12px;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+.detail-value {
+  color: #ffffff;
+  font-size: 15px;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.detail-value.highlight {
+  color: #00ff88;
+  font-weight: 600;
+}
+
+.detail-value.status-on {
+  color: #00ff88;
+}
+
+.detail-value.status-off {
+  color: #ff6b6b;
+}
+
+.details-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(58, 143, 212, 0.3) 50%, transparent 100%);
+  margin: 16px 0;
+}
+
+/* ============================================
+   快照弹窗样式
+   ============================================ */
+.snapshot-panel {
+  padding: 20px 24px;
+}
+
+.snapshot-image-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(30, 73, 118, 0.4);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.snapshot-image {
+  max-width: 100%;
+  max-height: 380px;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.snapshot-info {
+  text-align: center;
+  color: #5a7a9a;
+  font-size: 12px;
+}
+
+.snapshot-time {
+  font-family: 'Courier New', monospace;
+}
+
+/* ============================================
+   删除确认弹窗样式
+   ============================================ */
+.delete-panel {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.delete-icon {
+  font-size: 48px;
+  color: #d9363e;
+  opacity: 0.8;
+}
+
+.delete-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.delete-title {
+  color: #c0c4cc;
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.delete-warning {
+  color: #d9363e;
+  font-size: 13px;
+  margin: 0;
+  opacity: 0.8;
+}
+
+/* ============================================
+   Element Plus 按钮全局样式
+   ============================================ */
+
+.el-button {
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.el-button--small {
+  padding: 5px 14px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+/* 主按钮（选中状态 - 像高点按钮） */
+.el-button--primary {
+  background: linear-gradient(180deg, #2d7dd2 0%, #1a5fa0 100%) !important;
+  border-color: #3a8fd4 !important;
+  color: #fff !important;
+}
+
+.el-button--primary:hover {
+  background: linear-gradient(180deg, #3a8fd4 0%, #2d7dd2 100%) !important;
+  border-color: #4da6e8 !important;
+  box-shadow: 0 2px 8px rgba(45, 125, 210, 0.3);
+}
+
+/* 危险按钮 */
+.el-button--danger {
+  background: linear-gradient(180deg, #d9363e 0%, #b92b33 100%) !important;
+  border-color: #dc484f !important;
+  color: #fff !important;
+}
+
+.el-button--danger:hover {
+  background: linear-gradient(180deg, #e6454c 0%, #d9363e 100%) !important;
+  border-color: #e85a61 !important;
+  box-shadow: 0 2px 8px rgba(217, 54, 62, 0.3);
+}
+
+/* 默认按钮（未选中状态 - 像低点按钮） */
+.el-button--default {
+  background: rgba(15, 42, 68, 0.6) !important;
+  border-color: #1e4976 !important;
+  color: #8ab4d8 !important;
+}
+
+.el-button--default:hover {
+  background: rgba(15, 42, 68, 0.9) !important;
+  border-color: #3a8fd4 !important;
+  color: #8ab4d8 !important;
+}
+
+/* 工具栏按钮统一样式 */
+.toolbar-btn {
+  background: rgba(15, 42, 68, 0.6) !important;
+  border-color: #1e4976 !important;
+  color: #8ab4d8 !important;
+}
+
+.toolbar-btn:hover {
+  background: rgba(15, 42, 68, 0.9) !important;
+  border-color: #3a8fd4 !important;
+  color: #8ab4d8 !important;
+}
+
+.toolbar-btn.is-active,
+.toolbar-btn.el-button--primary {
+  background: linear-gradient(180deg, #2d7dd2 0%, #1a5fa0 100%) !important;
+  border-color: #3a8fd4 !important;
+  color: #fff !important;
+}
+
+.toolbar-btn.el-button--primary:hover {
+  background: linear-gradient(180deg, #3a8fd4 0%, #2d7dd2 100%) !important;
+  border-color: #4da6e8 !important;
+  box-shadow: 0 2px 8px rgba(45, 125, 210, 0.3);
+}
+
+.toolbar-btn.el-button--danger {
+  background: linear-gradient(180deg, #d9363e 0%, #b92b33 100%) !important;
+  border-color: #dc484f !important;
+  color: #fff !important;
+}
+
+.toolbar-btn.el-button--danger:hover {
+  background: linear-gradient(180deg, #e6454c 0%, #d9363e 100%) !important;
+  border-color: #e85a61 !important;
+  box-shadow: 0 2px 8px rgba(217, 54, 62, 0.3);
+}
+
+.toolbar-btn.is-disabled,
+.toolbar-btn:disabled {
+  background: rgba(15, 42, 68, 0.3) !important;
+  border-color: rgba(30, 73, 118, 0.3) !important;
+  color: rgba(102, 178, 255, 0.3) !important;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   Element Plus 输入框 / 选择器 / 开关
+   ============================================ */
+
+/* Input Number */
+.el-input-number {
+  width: 120px;
+}
+
+.el-input-number .el-input__wrapper {
+  background: #0a1628 !important;
+  border: 1px solid #1e4976 !important;
+  box-shadow: none !important;
+  border-radius: 4px;
+  padding: 0 8px;
+}
+
+.el-input-number .el-input__wrapper:hover {
+  border-color: #3a8fd4 !important;
+}
+
+.el-input-number .el-input__inner {
+  color: #fff !important;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+}
+
+.el-input-number__decrease,
+.el-input-number__increase {
+  background: #153a5c !important;
+  border-color: #1e4976 !important;
+  color: #66b2ff !important;
+}
+
+.el-input-number__decrease:hover,
+.el-input-number__increase:hover {
+  background: #1e4976 !important;
+  color: #fff !important;
+}
+
+/* Select */
+.el-select {
+  width: 140px;
+}
+
+.el-select .el-input__wrapper {
+  background: #0a1628 !important;
+  border: 1px solid #1e4976 !important;
+  box-shadow: none !important;
+}
+
+.el-select .el-input__wrapper:hover {
+  border-color: #3a8fd4 !important;
+}
+
+.el-select .el-input__inner {
+  color: #fff !important;
+}
+
+.el-select-dropdown {
+  background: #0f2a44 !important;
+  border: 1px solid #1e4976 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+.el-select-dropdown__item {
+  color: #66b2ff !important;
+  padding: 10px 16px !important;
+  font-size: 13px !important;
+}
+
+.el-select-dropdown__item:hover {
+  background: rgba(58, 143, 212, 0.15) !important;
+}
+
+.el-select-dropdown__item.selected {
+  color: #8ab4d8 !important;
+  background: rgba(58, 143, 212, 0.25) !important;
+  font-weight: 500 !important;
+}
+
+/* Switch */
+.el-switch__core {
+  background: #1e4976 !important;
+  border-color: #1e4976 !important;
+}
+
+.el-switch.is-checked .el-switch__core {
+  background: #2d7dd2 !important;
+  border-color: #2d7dd2 !important;
+}
+
+.el-switch__label {
+  color: #5a7a9a !important;
+  font-size: 12px !important;
+}
+
+.el-switch__label.is-active {
+  color: #8ab4d8 !important;
+}
+
+/* Dropdown */
+.el-dropdown-menu {
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%) !important;
+  border: 1px solid #1e4976 !important;
+  border-radius: 6px !important;
+  padding: 6px 0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+.el-dropdown-menu__item {
+  color: #66b2ff !important;
+  font-size: 13px !important;
+  padding: 10px 16px !important;
+}
+
+.el-dropdown-menu__item:hover {
+  background: rgba(58, 143, 212, 0.15) !important;
+  color: #8ab4d8 !important;
+}
+
+/* Message */
+.el-message {
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%) !important;
+  border: 1px solid #1e4976 !important;
+  color: #8ab4d8 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+.el-message--success {
+  background: linear-gradient(180deg, #1a3d2c 0%, #0f2918 100%) !important;
+  border-color: #2d6a4f !important;
+}
+
+.el-message--warning {
+  background: linear-gradient(180deg, #3d3a1a 0%, #29260f 100%) !important;
+  border-color: #6a5a2d !important;
+}
+
+.el-message--danger {
+  background: linear-gradient(180deg, #3d1a1a 0%, #290f0f 100%) !important;
+  border-color: #6a2d2d !important;
+}
+
+/* Popper */
+.el-popper.is-light {
+  background: #0f2a44 !important;
+  border: 1px solid #1e4976 !important;
+}
+
 .spectrum-container {
   width: 100%;
   height: 100%;
@@ -96,3 +645,4 @@ html, body, #app {
   height: 16px;
   border-radius: 2px;
 }
+

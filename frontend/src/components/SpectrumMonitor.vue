@@ -20,43 +20,48 @@
           </div>
           <div class="toolbar-right">
             <div class="toolbar-buttons">
-              <el-button 
-                size="small" 
-                :type="instance.config.waterfallEnabled ? 'primary' : 'default'" 
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.config.waterfallEnabled ? 'primary' : 'default'"
                 @click.stop="toggleWaterfall(instance)"
               >
                 瀑布图
               </el-button>
-              <el-button 
-                size="small" 
-                :type="instance.config.maxHold ? 'primary' : 'default'" 
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.config.maxHold ? 'primary' : 'default'"
                 @click.stop="toggleMaxHold(instance)"
               >
                 高点
               </el-button>
-              <el-button 
-                size="small" 
-                :type="instance.config.minHold ? 'primary' : 'default'" 
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.config.minHold ? 'primary' : 'default'"
                 @click.stop="toggleMinHold(instance)"
               >
                 低点
               </el-button>
-              <el-button 
-                size="small" 
-                :type="instance.isFullSample ? 'primary' : 'default'" 
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.isFullSample ? 'primary' : 'default'"
                 @click.stop="toggleSampleMode(instance)"
               >
                 全样
               </el-button>
-              <el-button 
-                size="small" 
-                :type="!instance.isFullSample ? 'primary' : 'default'" 
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="!instance.isFullSample ? 'primary' : 'default'"
                 @click.stop="toggleSampleMode(instance)"
               >
                 抽样
               </el-button>
               <el-dropdown @command="(cmd) => handleSettingsCommand(cmd, instance)">
-                <el-button size="small">
+                <el-button class="toolbar-btn" size="small">
                   扫频设置
                 </el-button>
                 <template #dropdown>
@@ -68,28 +73,29 @@
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
-              <el-button size="small" @click.stop="showDetails(instance)">
+              <el-button class="toolbar-btn" size="small" @click.stop="showDetails(instance)">
                 详情
               </el-button>
-              <el-button size="small" @click.stop="addInstance">
+              <el-button class="toolbar-btn" size="small" @click.stop="addInstance">
                 新增
               </el-button>
-              <el-button size="small" @click.stop="takeSnapshot(instance)">
+              <el-button class="toolbar-btn" size="small" @click.stop="takeSnapshot(instance)">
                 快照
               </el-button>
-              <el-button 
-                size="small" 
+              <el-button
+                class="toolbar-btn"
+                size="small"
                 :type="instance.isRecording ? 'danger' : 'default'"
                 @click.stop="toggleRecording(instance)"
               >
                 {{ instance.isRecording ? `录制(${instance.recordingCountdown.toFixed(1)}s)` : '录制' }}
               </el-button>
-              <el-button size="small" @click.stop="toggleFullscreen(instance)">
+              <el-button class="toolbar-btn" size="small" @click.stop="toggleFullscreen(instance)">
                 {{ instance.isFullscreen ? '恢复' : '全屏' }}
               </el-button>
-              <el-button size="small" 
-                type="danger" 
-                @click.stop="showDeleteConfirm(instance)" 
+              <el-button class="toolbar-btn" size="small"
+                type="danger"
+                @click.stop="showDeleteConfirm(instance)"
                 :disabled="index === 0"
               >
                 删除
