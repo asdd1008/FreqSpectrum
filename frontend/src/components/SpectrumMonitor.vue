@@ -278,7 +278,6 @@
 
         <!-- 详情弹窗 -->
         <el-dialog 
-          v-if="instance?.detailsDialogVisible"
           v-model="instance.detailsDialogVisible" 
           title="频谱详情" 
           width="480px"
@@ -338,28 +337,41 @@
             <el-button size="small" type="primary" @click="instance.detailsDialogVisible = false">关闭</el-button>
           </template>
         </el-dialog>
+        <!-- 快照预览弹窗 -->
+        <el-dialog 
+          v-model="instance.snapshotDialogVisible" 
+          title="快照预览" 
+          width="600px"
+          :append-to-body="true"
+          class="snapshot-dialog"
+        >
+          <div class="snapshot-preview">
+            <img :src="instance.snapshotUrl" alt="快照预览" class="snapshot-image">
+          </div>
+          <template #footer>
+            <el-button size="small" @click="instance.snapshotDialogVisible = false">关闭</el-button>
+            <el-button size="small" type="primary" @click="downloadSnapshot(instance)">下载</el-button>
+          </template>
+        </el-dialog>
+        
+        <!-- 删除确认弹窗 -->
+        <el-dialog 
+          v-model="instance.deleteConfirmVisible" 
+          title="确认删除" 
+          width="350px"
+          :append-to-body="true"
+          class="delete-confirm-dialog"
+        >
+          <div class="delete-confirm-content">
+            <p>确定要删除此频谱组件吗？</p>
+            <p class="delete-warning">此操作无法撤销。</p>
+          </div>
+          <template #footer>
+            <el-button size="small" @click="instance.deleteConfirmVisible = false">取消</el-button>
+            <el-button size="small" type="danger" @click="confirmDelete(instance)">确认删除</el-button>
+          </template>
+        </el-dialog>
       </div>
-      
-      <el-dialog v-if="instance?.snapshotDialogVisible" v-model="instance.snapshotDialogVisible" title="快照预览" width="600px" class="snapshot-dialog">
-        <div class="snapshot-preview">
-          <img :src="instance.snapshotUrl" alt="快照预览" class="snapshot-image">
-        </div>
-        <template #footer>
-          <el-button size="small" @click="instance.snapshotDialogVisible = false">关闭</el-button>
-          <el-button size="small" type="primary" @click="downloadSnapshot(instance)">下载</el-button>
-        </template>
-      </el-dialog>
-      
-      <el-dialog v-if="instance?.deleteConfirmVisible" v-model="instance.deleteConfirmVisible" title="确认删除" width="350px" class="delete-confirm-dialog">
-        <div class="delete-confirm-content">
-          <p>确定要删除此频谱组件吗？</p>
-          <p class="delete-warning">此操作无法撤销。</p>
-        </div>
-        <template #footer>
-          <el-button size="small" @click="instance.deleteConfirmVisible = false">取消</el-button>
-          <el-button size="small" type="danger" @click="confirmDelete(instance)">确认删除</el-button>
-        </template>
-      </el-dialog>
     </div>
   </div>
 </template>
@@ -675,6 +687,10 @@ const createInstance = () => {
 };
 
 const addInstance = () => {
+  if (instances.value.length >= 6) {
+    ElMessage.warning('最多只能添加6个频谱组件');
+    return;
+  }
   createInstance();
   nextTick(() => {
     handleResize();
@@ -848,6 +864,14 @@ const confirmDelete = (instance) => {
 };
 
 const toggleFullscreen = (instance) => {
+  // 如果要进入全屏，先取消其他组件的全屏状态
+  if (!instance.isFullscreen) {
+    instances.value.forEach(i => {
+      if (i.id !== instance.id && i.isFullscreen) {
+        i.isFullscreen = false;
+      }
+    });
+  }
   instance.isFullscreen = !instance.isFullscreen;
   nextTick(() => {
     handleResize();
@@ -1384,5 +1408,123 @@ onUnmounted(() => {
 
 :deep(.el-dialog__close:hover) {
   color: #8ab4d8;
+}
+
+/* Dropdown 菜单样式 */
+:deep(.el-dropdown-menu) {
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
+  border: 1px solid #1e4976;
+  border-radius: 6px;
+  padding: 6px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.el-dropdown-menu__item) {
+  color: #66b2ff;
+  font-size: 13px;
+  padding: 10px 16px;
+}
+
+:deep(.el-dropdown-menu__item:hover) {
+  background: rgba(58, 143, 212, 0.15);
+  color: #8ab4d8;
+}
+
+/* 输入框样式 */
+:deep(.el-input__wrapper) {
+  background: #0f2a44;
+  border: 1px solid #1e4976;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+:deep(.el-input__wrapper:hover) {
+  border-color: #3a8fd4;
+}
+
+:deep(.el-input__inner) {
+  color: #fff;
+}
+
+:deep(.el-input__inner::placeholder) {
+  color: #5a7a9a;
+}
+
+/* Select 下拉面板 */
+:deep(.el-select-dropdown) {
+  background: #0f2a44;
+  border: 1px solid #1e4976;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.el-select-dropdown__item) {
+  color: #66b2ff;
+  padding: 10px 16px;
+}
+
+:deep(.el-select-dropdown__item:hover) {
+  background: rgba(58, 143, 212, 0.15);
+}
+
+:deep(.el-select-dropdown__item.selected) {
+  color: #8ab4d8;
+  background: rgba(58, 143, 212, 0.25);
+  font-weight: 500;
+}
+
+:deep(.el-popper.is-light) {
+  background: #0f2a44;
+  border: 1px solid #1e4976;
+}
+
+/* Message 提示样式 */
+:deep(.el-message) {
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
+  border: 1px solid #1e4976;
+  color: #8ab4d8;
+}
+
+:deep(.el-message--success) {
+  background: linear-gradient(180deg, #1a3d2c 0%, #0f2918 100%);
+  border-color: #2d6a4f;
+}
+
+:deep(.el-message--warning) {
+  background: linear-gradient(180deg, #3d3a1a 0%, #29260f 100%);
+  border-color: #6a5a2d;
+}
+
+:deep(.el-message--danger) {
+  background: linear-gradient(180deg, #3d1a1a 0%, #290f0f 100%);
+  border-color: #6a2d2d;
+}
+
+/* 额外的弹窗内容样式 */
+:deep(.el-dialog__headerbtn) {
+  top: 16px;
+  right: 20px;
+}
+
+:deep(.el-overlay) {
+  background-color: rgba(0, 10, 30, 0.7);
+}
+
+/* 滚动条样式 */
+.spectrum-instances::-webkit-scrollbar {
+  width: 8px;
+}
+
+.spectrum-instances::-webkit-scrollbar-track {
+  background: #0a1628;
+}
+
+.spectrum-instances::-webkit-scrollbar-thumb {
+  background: #1e4976;
+  border-radius: 4px;
+}
+
+.spectrum-instances::-webkit-scrollbar-thumb:hover {
+  background: #3a6b9c;
 }
 </style>
