@@ -703,12 +703,26 @@ const initInstanceRenderer = (instance, canvas) => {
     setTimeout(() => initInstanceRenderer(instance, canvas), 100);
     return;
   }
-  // 瀑布图显示时占50%高度
   const waterfallHeight = instance.config.waterfallEnabled ? (rect.height * 0.5) : 0;
-  const RendererClass = instance.config.useWebGL ? SpectrumWebGLRenderer : SpectrumCanvasRenderer;
-  instance.renderer = markRaw(new RendererClass(canvas, {
-    waterfallHeight
-  }));
+  let RendererClass = instance.config.useWebGL ? SpectrumWebGLRenderer : SpectrumCanvasRenderer;
+  
+  try {
+    instance.renderer = markRaw(new RendererClass(canvas, {
+      waterfallHeight
+    }));
+  } catch (e) {
+    if (instance.config.useWebGL && e.message?.includes('WebGL')) {
+      instance.config.useWebGL = false;
+      RendererClass = SpectrumCanvasRenderer;
+      instance.renderer = markRaw(new RendererClass(canvas, {
+        waterfallHeight
+      }));
+      ElMessage.warning('WebGL不支持，已切换到Canvas渲染');
+    } else {
+      throw e;
+    }
+  }
+  
   instance.renderer.setConfig({
     centerFreq: instance.config.centerFreq,
     span: instance.config.span,
