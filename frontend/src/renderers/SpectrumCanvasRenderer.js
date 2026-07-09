@@ -756,26 +756,6 @@ export class SpectrumCanvasRenderer {
     
     this.ctx.setLineDash([])
     
-    const freq = this.getFreqAtX(x)
-    const level = this.getLevelAtY(y)
-    
-    const points = this.spectrumData?.length || 1
-    const index = Math.round(((x - this.plotArea.x) / this.plotArea.width) * (points - 1))
-    const clampedIndex = Math.max(0, Math.min(points - 1, index))
-    const actualLevel = this.spectrumData?.[clampedIndex] || this.minLevel
-    
-    const skyFreq = (freq / 1e6).toFixed(3)
-    const accessFreq = ((freq - 10700000) / 1e6).toFixed(3)
-    
-    const textX = this.plotArea.x + 10
-    const textY = this.plotArea.y + this.plotArea.height + 5
-    
-    this.ctx.fillStyle = '#66b2ff'
-    this.ctx.font = '11px monospace'
-    this.ctx.textAlign = 'left'
-    this.ctx.textBaseline = 'top'
-    
-    this.ctx.fillText(`${actualLevel.toFixed(2)} dBm    天空频率: ${skyFreq} MHz    接入频率: ${accessFreq} MHz`, textX, textY)
   }
 
   drawBoxSelection() {
