@@ -34,26 +34,490 @@
             <span class="info-value peak">{{ stats.max.toFixed(2) }} dBm</span>
           </div>
         </div>
-      </div>
-      <div class="header-right">
-        <el-button-group>
-          <el-button size="small" :type="isPlaying ? 'success' : 'primary'" @click="togglePlay">
-            <el-icon><component :is="isPlaying ? 'Pause' : 'VideoPlay'" /></el-icon>
-            {{ isPlaying ? '暂停' : '开始' }}
-          </el-button>
-          <el-button size="small" @click="takeSnapshot">
-            <el-icon><Camera /></el-icon>
-            快照
-          </el-button>
-          <el-button size="small" @click="showMarkersDialog = true">
-            <el-icon><Flag /></el-icon>
-            标记
-          </el-button>
-          <el-button size="small" @click="toggleRecording">
-            <el-icon><VideoCamera /></el-icon>
-            {{ isRecording ? '停止录制' : '录制' }}
-          </el-button>
-        </el-button-group>
+        <div class="instance-canvas-container">
+          <canvas 
+            :ref="(el) => setCanvasRef(instance.id, el)" 
+            class="spectrum-canvas"
+            @mousedown="(e) => onMouseDown(e, instance)"
+            @mousemove="(e) => onMouseMove(e, instance)"
+            @mouseup="(e) => onMouseUp(e, instance)"
+            @mouseleave="(e) => onMouseLeave(e, instance)"
+            @wheel.prevent="(e) => onWheel(e, instance)"
+          ></canvas>
+          <div v-if="instance.hoverInfo" class="hover-info-box" 
+            :style="{ left: instance.hoverPosition.x + 'px', top: instance.hoverPosition.y + 'px' }">
+            <div class="info-row">
+              <span class="info-label">天空频率</span>
+              <span class="info-value">{{ instance.hoverInfo.skyFreq }}</span>
+              <span class="info-unit">MHz</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">接入频率</span>
+              <span class="info-value">{{ instance.hoverInfo.accessFreq }}</span>
+              <span class="info-unit">MHz</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">电平</span>
+              <span class="info-value">{{ instance.hoverInfo.level }}</span>
+              <span class="info-unit">dBm</span>
+            </div>
+          </div>
+          <div v-if="instance.boxInfo" class="box-info-box" 
+            :style="{ left: instance.boxInfoPosition.x + 'px', top: instance.boxInfoPosition.y + 'px' }">
+            <div class="info-row">
+              <span class="info-label">天空中心频率</span>
+              <span class="info-value">{{ instance.boxInfo.skyCenterFreq }}</span>
+              <span class="info-unit">MHz</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">接入中心频率</span>
+              <span class="info-value">{{ instance.boxInfo.accessCenterFreq }}</span>
+              <span class="info-unit">MHz</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">带宽</span>
+              <span class="info-value">{{ instance.boxInfo.bandwidth }}</span>
+              <span class="info-unit">MHz</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">电平</span>
+              <span class="info-value">{{ instance.boxInfo.level }}</span>
+              <span class="info-unit">dBm</span>
+            </div>
+          </div>
+        </div>
+        <div class="instance-footer">
+          <div class="footer-item">
+            <span>中心频率: {{ formatFreq(instance.config.centerFreq) }}</span>
+          </div>
+          <div class="footer-item">
+            <span>带宽: {{ formatFreq(instance.config.span) }}</span>
+          </div>
+          <div class="footer-item">
+            <span>峰值: {{ instance.stats.max.toFixed(2) }} dBm</span>
+          </div>
+        </div>
+
+        <!-- 设置弹窗 -->
+        <el-dialog
+          v-model="instance.settingsDialogVisible"
+          :title="instance.settingsDialogTitle"
+          width="480px"
+          :append-to-body="true"
+          destroy-on-close
+          class="spectrum-settings-dialog"
+        >
+          <!-- 频率设置 -->
+          <div v-if="instance.activeSettingsTab === 'freqSettings'" class="settings-panel">
+            <div class="settings-section">
+              <div class="section-title">频率参数</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2699;</span>
+                    中心频率
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.centerFreq" :min="1" :max="60000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">MHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2194;</span>
+                    起始频率
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.startFreq" :min="1" :max="60000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">MHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2194;</span>
+                    终止频率
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.endFreq" :min="1" :max="60000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">MHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25A1;</span>
+                    频宽
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.span" :min="1" :max="60000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">MHz</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-divider"></div>
+            <div class="settings-section">
+              <div class="section-title">分辨率带宽</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x26A1;</span>
+                    RBW
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.rbw" :min="1" :max="10000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">kHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x26A1;</span>
+                    VBW
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.freqSettings.vbw" :min="1" :max="10000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">kHz</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 电平设置 -->
+          <div v-if="instance.activeSettingsTab === 'levelSettings'" class="settings-panel">
+            <div class="settings-section">
+              <div class="section-title">电平参数</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25B2;</span>
+                    参考电平
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.levelSettings.refLevel" :min="-130" :max="30" :step="1" size="small" controls-position="right" />
+                    <span class="unit">dBm</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x21C5;</span>
+                    电平偏移
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.levelSettings.levelOffset" :min="-100" :max="100" :step="0.1" size="small" controls-position="right" />
+                    <span class="unit">dB</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x26A0;</span>
+                    衰减
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.levelSettings.attenuation" :min="0" :max="70" :step="1" size="small" controls-position="right" />
+                    <span class="unit">dB</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x1F50A;</span>
+                    前置放大器
+                  </label>
+                  <div class="form-control">
+                    <el-switch
+                      v-model="instance.levelSettings.preAmpEnabled"
+                      active-text="开启"
+                      inactive-text="关闭"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 显示设置 -->
+          <div v-if="instance.activeSettingsTab === 'displaySettings'" class="settings-panel">
+            <div class="settings-section">
+              <div class="section-title">显示参数</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2500;</span>
+                    显示线条
+                  </label>
+                  <div class="form-control">
+                    <el-select v-model="instance.displaySettings.lineStyle" size="small">
+                      <el-option label="实线" value="solid" />
+                      <el-option label="虚线" value="dashed" />
+                      <el-option label="点线" value="dotted" />
+                    </el-select>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25CB;</span>
+                    线条宽度
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.displaySettings.lineWidth" :min="0.5" :max="5" :step="0.5" size="small" controls-position="right" />
+                    <span class="unit">px</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25A0;</span>
+                    填充区域
+                  </label>
+                  <div class="form-control">
+                    <el-switch
+                      v-model="instance.displaySettings.fillEnabled"
+                      active-text="开启"
+                      inactive-text="关闭"
+                    />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x26A1;</span>
+                    检测模式
+                  </label>
+                  <div class="form-control">
+                    <el-select v-model="instance.displaySettings.detectorMode" size="small">
+                      <el-option label="自动" value="auto" />
+                      <el-option label="正峰值" value="positive" />
+                      <el-option label="负峰值" value="negative" />
+                      <el-option label="采样" value="sample" />
+                    </el-select>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2211;</span>
+                    平均次数
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.displaySettings.avgCount" :min="1" :max="1000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">次</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 渲染设置 -->
+          <div v-if="instance.activeSettingsTab === 'rendererSettings'" class="settings-panel">
+            <div class="settings-section">
+              <div class="section-title">渲染方式</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x1F5A5;</span>
+                    渲染模式
+                  </label>
+                  <div class="form-control">
+                    <el-radio-group v-model="instance.rendererSettings.useWebGL" size="small">
+                      <el-radio :value="false">Canvas</el-radio>
+                      <el-radio :value="true">WebGL</el-radio>
+                    </el-radio-group>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-section">
+              <div class="section-title">渲染参数</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x23F1;</span>
+                    扫描时间
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.rendererSettings.sweepTime" :min="10" :max="10000" :step="10" size="small" controls-position="right" />
+                    <span class="unit">ms</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x2699;</span>
+                    频率分辨率
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.rendererSettings.freqResolution" :min="1" :max="10000" :step="1" size="small" controls-position="right" />
+                    <span class="unit">kHz</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x1F504;</span>
+                    扫描模式
+                  </label>
+                  <div class="form-control">
+                    <el-select v-model="instance.rendererSettings.sweepMode" size="small">
+                      <el-option label="连续扫描" value="sweep" />
+                      <el-option label="单次扫描" value="single" />
+                      <el-option label="FFT" value="fft" />
+                    </el-select>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x25B2;</span>
+                    增益
+                  </label>
+                  <div class="form-control">
+                    <el-input-number v-model="instance.rendererSettings.gain" :min="0" :max="50" :step="1" size="small" controls-position="right" />
+                    <span class="unit">dB</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <template #footer>
+            <div class="dialog-footer">
+              <el-button size="small" @click="instance.settingsDialogVisible = false">取消</el-button>
+              <el-button size="small" type="primary" @click="applySettings(instance)">应用设置</el-button>
+            </div>
+          </template>
+        </el-dialog>
+
+        <!-- 详情弹窗 -->
+        <el-dialog
+          v-model="instance.detailsDialogVisible"
+          title="频谱详情"
+          width="520px"
+          :append-to-body="true"
+          class="spectrum-details-dialog"
+        >
+          <div class="details-panel-scroll">
+            <div class="details-panel">
+              <div class="details-section">
+                <div class="section-title">
+                  <span class="section-icon">&#x2699;</span>
+                  频率信息
+                </div>
+                <div class="details-grid">
+                  <div class="detail-card">
+                    <div class="detail-label">中心频率</div>
+                    <div class="detail-value">{{ formatFreq(instance.config.centerFreq) }}</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">带宽</div>
+                    <div class="detail-value">{{ formatFreq(instance.config.span) }}</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">起始频率</div>
+                    <div class="detail-value">{{ formatFreq(instance.config.startFreq) }}</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">终止频率</div>
+                    <div class="detail-value">{{ formatFreq(instance.config.endFreq) }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="details-divider"></div>
+              <div class="details-section">
+                <div class="section-title">
+                  <span class="section-icon">&#x25B2;</span>
+                  电平信息
+                </div>
+                <div class="details-grid">
+                  <div class="detail-card">
+                    <div class="detail-label">参考电平</div>
+                    <div class="detail-value">{{ instance.config.refLevel.toFixed(1) }} dBm</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">当前峰值</div>
+                    <div class="detail-value highlight">{{ instance.stats.max.toFixed(2) }} dBm</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">当前谷值</div>
+                    <div class="detail-value">{{ instance.stats.min.toFixed(2) }} dBm</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">平均值</div>
+                    <div class="detail-value">{{ instance.stats.avg.toFixed(2) }} dBm</div>
+                  </div>
+                </div>
+              </div>
+              <div class="details-divider"></div>
+              <div class="details-section">
+                <div class="section-title">
+                  <span class="section-icon">&#x26A1;</span>
+                  参数设置
+                </div>
+                <div class="details-grid">
+                  <div class="detail-card">
+                    <div class="detail-label">RBW</div>
+                    <div class="detail-value">{{ (instance.config.rbw / 1000).toFixed(1) }} kHz</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">VBW</div>
+                    <div class="detail-value">{{ (instance.config.vbw / 1000).toFixed(1) }} kHz</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">扫描时间</div>
+                    <div class="detail-value">{{ instance.config.sweepTime }} ms</div>
+                  </div>
+                  <div class="detail-card">
+                    <div class="detail-label">瀑布图</div>
+                    <div class="detail-value" :class="{ 'status-on': instance.config.waterfallEnabled, 'status-off': !instance.config.waterfallEnabled }">
+                      {{ instance.config.waterfallEnabled ? '开启' : '关闭' }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <template #footer>
+            <div class="dialog-footer">
+              <el-button size="small" type="primary" @click="instance.detailsDialogVisible = false">关闭</el-button>
+            </div>
+          </template>
+        </el-dialog>
+        <!-- 快照预览弹窗 -->
+        <el-dialog
+          v-model="instance.snapshotDialogVisible"
+          title="快照预览"
+          width="640px"
+          :append-to-body="true"
+          class="spectrum-snapshot-dialog"
+        >
+          <div class="snapshot-panel">
+            <div class="snapshot-image-wrapper">
+              <img :src="instance.snapshotUrl" alt="快照预览" class="snapshot-image">
+            </div>
+            <div class="snapshot-info">
+              <span class="snapshot-time">{{ new Date().toLocaleString() }}</span>
+            </div>
+          </div>
+          <template #footer>
+            <div class="dialog-footer">
+              <el-button size="small" @click="instance.snapshotDialogVisible = false">关闭</el-button>
+              <el-button size="small" type="primary" @click="downloadSnapshot(instance)">
+                <span class="btn-icon">&#x2B07;</span> 下载快照
+              </el-button>
+            </div>
+          </template>
+        </el-dialog>
+
+        <!-- 删除确认弹窗 -->
+        <el-dialog
+          v-model="instance.deleteConfirmVisible"
+          title="确认删除"
+          width="400px"
+          :append-to-body="true"
+          class="spectrum-delete-dialog"
+        >
+          <div class="delete-panel">
+            <div class="delete-icon">&#x26A0;</div>
+            <div class="delete-message">
+              <p class="delete-title">确定要删除此频谱组件吗？</p>
+              <p class="delete-warning">删除后该组件的所有数据将被清除，此操作无法撤销。</p>
+            </div>
+          </div>
+          <template #footer>
+            <div class="dialog-footer">
+              <el-button size="small" @click="instance.deleteConfirmVisible = false">取消</el-button>
+              <el-button size="small" type="danger" @click="confirmDelete(instance)">确认删除</el-button>
+            </div>
+          </template>
+        </el-dialog>
       </div>
     </div>
 
@@ -200,113 +664,124 @@ import { ElMessage } from 'element-plus';
 import SpectrumSettings from './SpectrumSettings.vue';
 import { SpectrumCanvasRenderer } from '../renderers/SpectrumCanvasRenderer.js';
 import { SpectrumWebGLRenderer } from '../renderers/SpectrumWebGLRenderer.js';
-import { defaultSpectrumConfig, defaultLevelConfig, formatFreq, generateSpectrumData, calcSpectrumStats } from '../utils/spectrumUtils.js';
-import { wsManager } from '../utils/websocket.js';
-const props = defineProps({
- subscribeParams: {
- type: Object,
- default: () => ({})
- }
-});
-const emit = defineEmits(['dataUpdate', 'markerAdd', 'markerRemove', 'levelIndicatorChange']);
-const spectrumCanvas = ref(null);
-const canvasWrapper = ref(null);
-let renderer = null;
-let worker = null;
-let animationId = null;
-let dataTimer = null;
-const spectrumConfig = reactive({ ...defaultSpectrumConfig, enabled: true });
-const levelConfig = reactive({ ...defaultLevelConfig });
-const isPlaying = ref(true);
-const isRecording = ref(false);
-const showMarkersDialog = ref(false);
-const showSnapshotDialog = ref(false);
-const showBoxSelectDialog = ref(false);
-const snapshotUrl = ref('');
-const markers = ref([]);
-const stats = reactive({ max: -100, min: -100, avg: -100, maxIndex: 0, minIndex: 0 });
-const dataPoints = ref(1024);
-const waterfallLines = ref(0);
-const levelIndicatorPos = ref(null);
-const boxSelection = ref(null);
-const boxSelectResult = ref(null);
-const isMouseDown = ref(false);
-const mouseDownPos = null;
-const isPlaybackMode = ref(false);
-const isPlaybackPlaying = ref(false);
-const playbackFrame = ref(0);
-const playbackData = ref([]);
-const playMode = ref('sequence');
-let playbackTimer = null;
-const lFrequency = computed(() => {
- return spectrumConfig.centerFreq;
-});
-const localOscillator = computed(() => {
- return spectrumConfig.centerFreq - 10700000;
-});
-const initWorker = () => {
- worker = new Worker(new URL('../workers/spectrum.worker.js', import.meta.url), {
- type: 'module'
- });
- worker.onmessage = (e) => {
- const { type, data } = e.data;
- switch (type) {
- case 'spectrumProcessed':
- handleWorkerData(data);
- break;
- case 'boxSelectResult':
- handleBoxSelectResult(data);
- break;
- case 'recordingStarted':
- ElMessage.success('开始录制');
- break;
- case 'recordingStopped':
- ElMessage.success(`录制完成，共 ${data.frames} 帧，时长 ${data.duration.toFixed(1)} 秒`);
- break;
- }
- };
- const points = Math.floor(spectrumConfig.span / spectrumConfig.freqResolution);
- worker.postMessage({
- type: 'init',
- config: {
- span: spectrumConfig.span,
- freqResolution: spectrumConfig.freqResolution,
- waterfallMaxLines: 200,
- minLevel: spectrumConfig.refLevel - 100,
- maxLevel: spectrumConfig.refLevel
- }
- });
+import { defaultSpectrumConfig, formatFreq, generateSpectrumData } from '../utils/spectrumUtils.js';
+
+const instances = ref([]);
+const activeInstanceId = ref(null);
+let instanceIdCounter = 0;
+
+const canvasRefs = {};
+const instancesContainer = ref(null);
+
+const getInstanceStyle = (instance, index) => {
+  if (instance.isFullscreen) {
+    return {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      zIndex: 9999
+    };
+  }
+  const count = instances.value.length;
+  if (count <= 1) {
+    return { height: '100%' };
+  }
+  // 2个及以上：每个组件都是50%高度，超出视窗用滚动条
+  return { height: '50%' };
 };
-const initRenderer = (useWebGL = false) => {
- if (renderer) {
- renderer = null;
- }
- try {
- if (useWebGL) {
- renderer = new SpectrumWebGLRenderer(spectrumCanvas.value, {
- waterfallHeight: spectrumConfig.waterfallHeight
- });
- }
- else {
- renderer = new SpectrumCanvasRenderer(spectrumCanvas.value, {
- waterfallHeight: spectrumConfig.waterfallHeight
- });
- }
- renderer.setConfig({
- centerFreq: spectrumConfig.centerFreq,
- span: spectrumConfig.span,
- refLevel: spectrumConfig.refLevel,
- waterfallHeight: spectrumConfig.waterfallHeight
- });
- }
- catch (e) {
- console.error('WebGL not supported, falling back to Canvas:', e);
- renderer = new SpectrumCanvasRenderer(spectrumCanvas.value, {
- waterfallHeight: spectrumConfig.waterfallHeight
- });
- spectrumConfig.useWebGL = false;
- ElMessage.warning('WebGL不支持，已切换到Canvas渲染');
- }
+
+const activeInstance = computed(() => {
+  return instances.value.find(i => i.id === activeInstanceId.value);
+});
+
+const createInstanceData = (id) => {
+  return {
+    id,
+    config: { ...defaultSpectrumConfig },
+    isPlaying: true,
+    isRecording: false,
+    recordingCountdown: 10,
+    isFullSample: true,
+    isFullscreen: false,
+    stats: { max: -100, min: -100, avg: -100, maxIndex: 0, minIndex: 0 },
+    selectedPreset: '',
+    hoverInfo: null,
+    hoverPosition: { x: 0, y: 0 },
+    isBoxSelecting: false,
+    boxSelection: { startX: 0, startY: 0, endX: 0, endY: 0 },
+    boxInfo: null,
+    boxInfoPosition: { x: 0, y: 0 },
+    renderer: null,
+    canvas: null,
+    dataTimer: null,
+    recordingTimer: null,
+    recordingInterval: null,
+    animationId: null,
+    recordedFrames: [],
+    snapshotDialogVisible: false,
+    snapshotUrl: '',
+    deleteConfirmVisible: false,
+    // 设置弹窗状态
+    settingsDialogVisible: false,
+    settingsDialogTitle: '',
+    activeSettingsTab: '',
+    // 频率设置
+    freqSettings: {
+      centerFreq: 1000,
+      startFreq: 900,
+      endFreq: 1100,
+      span: 200,
+      rbw: 1000,
+      vbw: 1000
+    },
+    // 电平设置
+    levelSettings: {
+      refLevel: 0,
+      levelOffset: 0,
+      attenuation: 0,
+      preAmpEnabled: false
+    },
+    // 显示设置
+    displaySettings: {
+      lineStyle: 'solid',
+      lineWidth: 1.5,
+      fillEnabled: false,
+      detectorMode: 'auto',
+      avgCount: 1
+    },
+    // 渲染设置
+    rendererSettings: {
+      sweepTime: 100,
+      freqResolution: 1000,
+      sweepMode: 'sweep',
+      gain: 20,
+      useWebGL: true
+    },
+    // 详情弹窗
+    detailsDialogVisible: false
+  };
+};
+
+const initInstanceRenderer = (instance, canvas) => {
+  const rect = canvas?.getBoundingClientRect();
+  if (!rect || rect.width === 0 || rect.height === 0) {
+    setTimeout(() => initInstanceRenderer(instance, canvas), 100);
+    return;
+  }
+  // 瀑布图显示时占50%高度
+  const waterfallHeight = instance.config.waterfallEnabled ? (rect.height * 0.5) : 0;
+  const RendererClass = instance.config.useWebGL ? SpectrumWebGLRenderer : SpectrumCanvasRenderer;
+  instance.renderer = markRaw(new RendererClass(canvas, {
+    waterfallHeight
+  }));
+  instance.renderer.setConfig({
+    centerFreq: instance.config.centerFreq,
+    span: instance.config.span,
+    refLevel: instance.config.refLevel
+  });
+  startInstanceRenderLoop(instance);
 };
 const handleWorkerData = (data) => {
  const spectrum = new Float32Array(data.spectrum);
@@ -540,28 +1015,100 @@ const nextFrame = () => {
  }
  updatePlaybackDisplay();
 };
-const prevFrame = () => {
- if (playbackData.value.length === 0)
- return;
- if (playbackFrame.value > 0) {
- playbackFrame.value--;
- }
- else {
- playbackFrame.value = playbackData.value.length - 1;
- }
- updatePlaybackDisplay();
+
+const handleSettingsCommand = (command, instance) => {
+  instance.activeSettingsTab = command;
+  switch (command) {
+    case 'freqSettings':
+      instance.settingsDialogTitle = '频率设置';
+      // 同步当前值到设置表单
+      instance.freqSettings.centerFreq = instance.config.centerFreq / 1e6;
+      instance.freqSettings.startFreq = instance.config.startFreq / 1e6;
+      instance.freqSettings.endFreq = instance.config.endFreq / 1e6;
+      instance.freqSettings.span = instance.config.span / 1e6;
+      instance.freqSettings.rbw = instance.config.rbw / 1e3;
+      instance.freqSettings.vbw = instance.config.vbw / 1e3;
+      break;
+    case 'levelSettings':
+      instance.settingsDialogTitle = '电平设置';
+      instance.levelSettings.refLevel = instance.config.refLevel;
+      break;
+    case 'displaySettings':
+      instance.settingsDialogTitle = '显示设置';
+      break;
+    case 'rendererSettings':
+      instance.settingsDialogTitle = '渲染设置';
+      instance.rendererSettings.sweepTime = instance.config.sweepTime;
+      instance.rendererSettings.freqResolution = instance.config.freqResolution / 1e3;
+      instance.rendererSettings.sweepMode = instance.config.sweepMode;
+      instance.rendererSettings.gain = instance.config.gain;
+      instance.rendererSettings.useWebGL = instance.config.useWebGL;
+      break;
+  }
+  instance.settingsDialogVisible = true;
 };
-const updatePlaybackDisplay = () => {
- const frame = playbackData.value[playbackFrame.value];
- if (!frame || !renderer)
- return;
- renderer.setData({
- spectrum: frame.data
- });
- renderer.setTimeLine(playbackFrame.value);
- if (frame.stats) {
- Object.assign(stats, frame.stats);
- }
+
+const applySettings = (instance) => {
+  switch (instance.activeSettingsTab) {
+    case 'freqSettings': {
+      instance.config.centerFreq = instance.freqSettings.centerFreq * 1e6;
+      instance.config.startFreq = instance.freqSettings.startFreq * 1e6;
+      instance.config.endFreq = instance.freqSettings.endFreq * 1e6;
+      instance.config.span = instance.freqSettings.span * 1e6;
+      instance.config.rbw = instance.freqSettings.rbw * 1e3;
+      instance.config.vbw = instance.freqSettings.vbw * 1e3;
+      if (instance.renderer) {
+        instance.renderer.setConfig({
+          centerFreq: instance.config.centerFreq,
+          span: instance.config.span
+        });
+        instance.renderer.resetZoom();
+      }
+      break;
+    }
+    case 'levelSettings': {
+      instance.config.refLevel = instance.levelSettings.refLevel;
+      if (instance.renderer) {
+        instance.renderer.setConfig({
+          refLevel: instance.config.refLevel
+        });
+        instance.renderer.resetZoom();
+      }
+      break;
+    }
+    case 'displaySettings': {
+      if (instance.renderer) {
+        instance.renderer.setConfig({
+          lineStyle: instance.displaySettings.lineStyle,
+          lineWidth: instance.displaySettings.lineWidth,
+          fillEnabled: instance.displaySettings.fillEnabled
+        });
+      }
+      break;
+    }
+    case 'rendererSettings': {
+      const needRecreateRenderer = instance.config.useWebGL !== instance.rendererSettings.useWebGL;
+      instance.config.sweepTime = instance.rendererSettings.sweepTime;
+      instance.config.freqResolution = instance.rendererSettings.freqResolution * 1e3;
+      instance.config.sweepMode = instance.rendererSettings.sweepMode;
+      instance.config.gain = instance.rendererSettings.gain;
+      instance.config.useWebGL = instance.rendererSettings.useWebGL;
+      if (needRecreateRenderer && instance.canvas) {
+        // 切换渲染模式，重新创建渲染器
+        stopInstanceRenderLoop(instance);
+        if (instance.renderer) {
+          instance.renderer.dispose?.();
+        }
+        initInstanceRenderer(instance, instance.canvas);
+      }
+      // 重启数据循环以应用新的扫描时间
+      stopInstanceDataLoop(instance);
+      startInstanceDataLoop(instance);
+      break;
+    }
+  }
+  instance.settingsDialogVisible = false;
+  ElMessage.success('设置已应用');
 };
 const exitPlayback = () => {
  isPlaybackMode.value = false;
