@@ -15,7 +15,7 @@ export const defaultSpectrumConfig = {
   avgHold: false,
   waterfallEnabled: false,
   waterfallHeight: 200,
-  useWebGL: true,
+  useWebGL: false,
   showSweepParams: true
 }
 

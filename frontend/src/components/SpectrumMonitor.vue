@@ -690,7 +690,7 @@ const createInstanceData = (id) => {
       freqResolution: 1000,
       sweepMode: 'sweep',
       gain: 20,
-      useWebGL: true
+      useWebGL: false
     },
     // 详情弹窗
     detailsDialogVisible: false
