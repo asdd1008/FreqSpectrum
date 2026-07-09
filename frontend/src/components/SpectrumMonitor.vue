@@ -1245,7 +1245,7 @@ const onMouseLeave = (e, instance) => {
   instance.isBoxSelecting = false;
   instance.hoverInfo = null;
   if (instance.renderer) {
-    instance.renderer.setBoxSelection(null);
+    instance.renderer.setMousePosition(null);
   }
 };
 
