@@ -265,7 +265,7 @@ export class Spectrum {
       }
     `
     
-    this.spectrumProgram = this._createProgram(gl, vsSource, fsSource)
+    this.spectrumProgram = this._createProgram(this.gl, vsSource, fsSource)
     
     const gridVs = `
       attribute vec2 a_position;
@@ -287,7 +287,7 @@ export class Spectrum {
       }
     `
     
-    this.gridProgram = this._createProgram(gl, gridVs, gridFs)
+    this.gridProgram = this._createProgram(this.gl, gridVs, gridFs)
   }
   
   _createProgram(gl, vsSource, fsSource) {
