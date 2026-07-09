@@ -372,6 +372,23 @@
           <!-- 渲染设置 -->
           <div v-if="instance.activeSettingsTab === 'rendererSettings'" class="settings-panel">
             <div class="settings-section">
+              <div class="section-title">渲染方式</div>
+              <div class="form-grid">
+                <div class="form-row">
+                  <label class="form-label">
+                    <span class="label-icon">&#x1F5A5;</span>
+                    渲染模式
+                  </label>
+                  <div class="form-control">
+                    <el-radio-group v-model="instance.rendererSettings.useWebGL" size="small">
+                      <el-radio :value="false">Canvas</el-radio>
+                      <el-radio :value="true">WebGL</el-radio>
+                    </el-radio-group>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-section">
               <div class="section-title">渲染参数</div>
               <div class="form-grid">
                 <div class="form-row">
@@ -579,6 +596,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, markRaw } from 'vue';
 import { ElMessage } from 'element-plus';
 import { SpectrumCanvasRenderer } from '../renderers/SpectrumCanvasRenderer.js';
+import { SpectrumWebGLRenderer } from '../renderers/SpectrumWebGLRenderer.js';
 import { defaultSpectrumConfig, formatFreq, generateSpectrumData } from '../utils/spectrumUtils.js';
 
 const instances = ref([]);
@@ -671,7 +689,8 @@ const createInstanceData = (id) => {
       sweepTime: 100,
       freqResolution: 1000,
       sweepMode: 'sweep',
-      gain: 20
+      gain: 20,
+      useWebGL: true
     },
     // 详情弹窗
     detailsDialogVisible: false
@@ -686,7 +705,8 @@ const initInstanceRenderer = (instance, canvas) => {
   }
   // 瀑布图显示时占50%高度
   const waterfallHeight = instance.config.waterfallEnabled ? (rect.height * 0.5) : 0;
-  instance.renderer = markRaw(new SpectrumCanvasRenderer(canvas, {
+  const RendererClass = instance.config.useWebGL ? SpectrumWebGLRenderer : SpectrumCanvasRenderer;
+  instance.renderer = markRaw(new RendererClass(canvas, {
     waterfallHeight
   }));
   instance.renderer.setConfig({
@@ -969,6 +989,7 @@ const handleSettingsCommand = (command, instance) => {
       instance.rendererSettings.freqResolution = instance.config.freqResolution / 1e3;
       instance.rendererSettings.sweepMode = instance.config.sweepMode;
       instance.rendererSettings.gain = instance.config.gain;
+      instance.rendererSettings.useWebGL = instance.config.useWebGL;
       break;
   }
   instance.settingsDialogVisible = true;
@@ -1013,10 +1034,20 @@ const applySettings = (instance) => {
       break;
     }
     case 'rendererSettings': {
+      const needRecreateRenderer = instance.config.useWebGL !== instance.rendererSettings.useWebGL;
       instance.config.sweepTime = instance.rendererSettings.sweepTime;
       instance.config.freqResolution = instance.rendererSettings.freqResolution * 1e3;
       instance.config.sweepMode = instance.rendererSettings.sweepMode;
       instance.config.gain = instance.rendererSettings.gain;
+      instance.config.useWebGL = instance.rendererSettings.useWebGL;
+      if (needRecreateRenderer && instance.canvas) {
+        // 切换渲染模式，重新创建渲染器
+        stopInstanceRenderLoop(instance);
+        if (instance.renderer) {
+          instance.renderer.dispose?.();
+        }
+        initInstanceRenderer(instance, instance.canvas);
+      }
       // 重启数据循环以应用新的扫描时间
       stopInstanceDataLoop(instance);
       startInstanceDataLoop(instance);
