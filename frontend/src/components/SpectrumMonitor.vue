@@ -1,37 +1,106 @@
 <template>
   <div class="spectrum-container">
-    <div class="spectrum-header">
-      <div class="header-left">
-        <span class="title">
-          <el-icon><Monitor /></el-icon>
-          频谱监测系统
-        </span>
-      </div>
-      <div class="header-center">
-        <div class="info-bar">
-          <div class="info-item">
-            <span class="info-label">中心频率:</span>
-            <span class="info-value">{{ formatFreq(spectrumConfig.centerFreq) }}</span>
+    <div class="spectrum-instances" ref="instancesContainer">
+      <div 
+        v-for="(instance, index) in instances" 
+        :key="instance.id"
+        class="spectrum-instance"
+        :class="{ active: instance.id === activeInstanceId, fullscreen: instance.isFullscreen }"
+        :style="getInstanceStyle(instance, index)"
+        @click="setActiveInstance(instance.id)"
+      >
+        <div class="instance-toolbar">
+          <div class="toolbar-left">
+            <el-select v-model="instance.selectedPreset" size="small" placeholder="请选择" style="width: 140px">
+              <el-option label="请选择" value="" />
+              <el-option label="预设1" value="preset1" />
+              <el-option label="预设2" value="preset2" />
+              <el-option label="预设3" value="preset3" />
+            </el-select>
           </div>
-          <div class="info-item">
-            <span class="info-label">带宽:</span>
-            <span class="info-value">{{ formatFreq(spectrumConfig.span) }}</span>
-          </div>
-          <div class="info-item" v-if="spectrumConfig.showSweepParams">
-            <span class="info-label">RBW:</span>
-            <span class="info-value">{{ formatFreq(spectrumConfig.rbw) }}</span>
-          </div>
-          <div class="info-item" v-if="spectrumConfig.showSweepParams">
-            <span class="info-label">VBW:</span>
-            <span class="info-value">{{ formatFreq(spectrumConfig.vbw) }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">参考电平:</span>
-            <span class="info-value">{{ spectrumConfig.refLevel }} dBm</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">当前峰值:</span>
-            <span class="info-value peak">{{ stats.max.toFixed(2) }} dBm</span>
+          <div class="toolbar-right">
+            <div class="toolbar-buttons">
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.config.waterfallEnabled ? 'primary' : 'default'"
+                @click.stop="toggleWaterfall(instance)"
+              >
+                瀑布图
+              </el-button>
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.config.maxHold ? 'primary' : 'default'"
+                @click.stop="toggleMaxHold(instance)"
+              >
+                高点
+              </el-button>
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.config.minHold ? 'primary' : 'default'"
+                @click.stop="toggleMinHold(instance)"
+              >
+                低点
+              </el-button>
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.isFullSample ? 'primary' : 'default'"
+                @click.stop="toggleSampleMode(instance)"
+              >
+                全样
+              </el-button>
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="!instance.isFullSample ? 'primary' : 'default'"
+                @click.stop="toggleSampleMode(instance)"
+              >
+                抽样
+              </el-button>
+              <el-dropdown @command="(cmd) => handleSettingsCommand(cmd, instance)">
+                <el-button class="toolbar-btn" size="small">
+                  扫频设置
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="freqSettings">频率设置</el-dropdown-item>
+                    <el-dropdown-item command="levelSettings">电平设置</el-dropdown-item>
+                    <el-dropdown-item command="displaySettings">显示设置</el-dropdown-item>
+                    <el-dropdown-item command="rendererSettings">渲染设置</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-button class="toolbar-btn" size="small" @click.stop="showDetails(instance)">
+                详情
+              </el-button>
+              <el-button class="toolbar-btn" size="small" @click.stop="addInstance">
+                新增
+              </el-button>
+              <el-button class="toolbar-btn" size="small" @click.stop="takeSnapshot(instance)">
+                快照
+              </el-button>
+              <el-button
+                class="toolbar-btn"
+                size="small"
+                :type="instance.isRecording ? 'danger' : 'default'"
+                @click.stop="toggleRecording(instance)"
+              >
+                {{ instance.isRecording ? `录制(${instance.recordingCountdown.toFixed(1)}s)` : '录制' }}
+              </el-button>
+              <el-button class="toolbar-btn" size="small" @click.stop="toggleFullscreen(instance)">
+                {{ instance.isFullscreen ? '恢复' : '全屏' }}
+              </el-button>
+              <el-button class="toolbar-btn" size="small"
+                type="danger"
+                @click.stop="showDeleteConfirm(instance)"
+                :disabled="index === 0"
+              >
+                删除
+              </el-button>
+            </div>
           </div>
         </div>
         <div class="instance-canvas-container">
@@ -520,148 +589,12 @@
         </el-dialog>
       </div>
     </div>
-
-    <div class="spectrum-main">
-      <div class="spectrum-content">
-        <div class="canvas-wrapper spectrum-canvas-wrapper" ref="canvasWrapper">
-          <canvas ref="spectrumCanvas" class="spectrum-canvas"
-            @mousedown="onMouseDown"
-            @mousemove="onMouseMove"
-            @mouseup="onMouseUp"
-            @mouseleave="onMouseLeave"
-            @click="onCanvasClick"
-            @contextmenu.prevent="onContextMenu"
-          ></canvas>
-          <div v-if="levelIndicatorPos" class="level-indicator-info">
-            <div>频率: {{ formatFreq(levelIndicatorPos.freq || 0) }}</div>
-            <div>电平: {{ (levelIndicatorPos.level || 0).toFixed(2) }} dBm</div>
-          </div>
-        </div>
-
-        <div class="info-bar bottom-bar">
-          <div class="info-item">
-            <span class="info-label">L频率:</span>
-            <span class="info-value">{{ formatFreq(lFrequency) }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">本振:</span>
-            <span class="info-value">{{ formatFreq(localOscillator) }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">最小值:</span>
-            <span class="info-value">{{ stats.min.toFixed(2) }} dBm</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">平均值:</span>
-            <span class="info-value">{{ stats.avg.toFixed(2) }} dBm</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">数据点数:</span>
-            <span class="info-value">{{ dataPoints }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">瀑布线数:</span>
-            <span class="info-value">{{ waterfallLines }}</span>
-          </div>
-          <div class="info-item" v-if="boxSelectResult">
-            <span class="info-label">框选区域峰值:</span>
-            <span class="info-value peak">{{ boxSelectResult.overallStats?.max.toFixed(2) }} dBm</span>
-          </div>
-        </div>
-
-        <div class="playback-controls" v-if="isPlaybackMode">
-          <el-button-group>
-            <el-button size="small" @click="prevFrame">
-              <el-icon><ArrowLeft /></el-icon>
-            </el-button>
-            <el-button size="small" @click="togglePlayback">
-              <el-icon><component :is="isPlaybackPlaying ? 'Pause' : 'VideoPlay'" /></el-icon>
-              {{ isPlaybackPlaying ? '暂停' : '播放' }}
-            </el-button>
-            <el-button size="small" @click="nextFrame">
-              <el-icon><ArrowRight /></el-icon>
-            </el-button>
-          </el-button-group>
-          <el-select v-model="playMode" size="small" style="width: 120px">
-            <el-option label="顺序播放" value="sequence" />
-            <el-option label="循环播放" value="loop" />
-            <el-option label="随机播放" value="random" />
-          </el-select>
-          <span class="playback-info">
-            帧: {{ playbackFrame + 1 }} / {{ playbackData.length }}
-          </span>
-          <el-slider v-model="playbackFrame" :max="playbackData.length - 1" :step="1" style="flex: 1; margin: 0 20px" />
-          <el-button size="small" @click="exitPlayback">
-            <el-icon><Close /></el-icon>
-            退出回放
-          </el-button>
-        </div>
-      </div>
-
-      <div class="spectrum-settings">
-        <SpectrumSettings
-          v-model:config="spectrumConfig"
-          v-model:levelConfig="levelConfig"
-          @rendererChange="onRendererChange"
-        />
-      </div>
-    </div>
-
-    <el-dialog v-model="showMarkersDialog" title="频谱标记" width="500px">
-      <div class="markers-list">
-        <div v-if="markers.length === 0" class="empty-tip">暂无标记</div>
-        <div v-for="marker in markers" :key="marker.id" class="marker-item">
-          <div class="marker-info">
-            <span class="marker-id">M{{ marker.id }}</span>
-            <span>{{ formatFreq(marker.freq) }}</span>
-            <span>{{ marker.level?.toFixed(2) }} dBm</span>
-          </div>
-          <el-input
-            v-model="marker.note"
-            placeholder="添加备注..."
-            size="small"
-            style="flex: 1; margin: 0 10px"
-          />
-          <el-button size="small" type="danger" @click="removeMarker(marker.id)">
-            <el-icon><Delete /></el-icon>
-          </el-button>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="clearAllMarkers">清除所有</el-button>
-        <el-button type="primary" @click="showMarkersDialog = false">确定</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="showSnapshotDialog" title="频谱快照" width="600px">
-      <img :src="snapshotUrl" style="width: 100%; border: 1px solid #1e4976" />
-      <template #footer>
-        <el-button @click="downloadSnapshot">下载</el-button>
-        <el-button type="primary" @click="showSnapshotDialog = false">关闭</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="showBoxSelectDialog" title="瀑布图框选分析" width="600px">
-      <div v-if="boxSelectResult" class="box-select-info">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="起始频率">{{ formatFreq(boxSelectResult.bounds.freqStart || 0) }}</el-descriptions-item>
-          <el-descriptions-item label="结束频率">{{ formatFreq(boxSelectResult.bounds.freqEnd || 0) }}</el-descriptions-item>
-          <el-descriptions-item label="最大电平">{{ boxSelectResult.overallStats?.max.toFixed(2) }} dBm</el-descriptions-item>
-          <el-descriptions-item label="最小电平">{{ boxSelectResult.overallStats?.min.toFixed(2) }} dBm</el-descriptions-item>
-          <el-descriptions-item label="平均电平">{{ boxSelectResult.overallStats?.avg.toFixed(2) }} dBm</el-descriptions-item>
-          <el-descriptions-item label="数据线数">{{ boxSelectResult.overallStats?.lineCount }}</el-descriptions-item>
-        </el-descriptions>
-        <div style="margin-top: 15px; text-align: right">
-          <el-button type="primary" @click="startPlayback">回放此区域</el-button>
-        </div>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
-<script setup>import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+<script setup>
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, markRaw } from 'vue';
 import { ElMessage } from 'element-plus';
-import SpectrumSettings from './SpectrumSettings.vue';
 import { SpectrumCanvasRenderer } from '../renderers/SpectrumCanvasRenderer.js';
 import { SpectrumWebGLRenderer } from '../renderers/SpectrumWebGLRenderer.js';
 import { defaultSpectrumConfig, formatFreq, generateSpectrumData } from '../utils/spectrumUtils.js';
@@ -797,237 +730,251 @@ const initInstanceRenderer = (instance, canvas) => {
   });
   startInstanceRenderLoop(instance);
 };
-const handleWorkerData = (data) => {
- const spectrum = new Float32Array(data.spectrum);
- const maxHold = data.maxHold ? new Float32Array(data.maxHold) : null;
- const minHold = data.minHold ? new Float32Array(data.minHold) : null;
- const avg = data.avg ? new Float32Array(data.avg) : null;
- if (data.stats) {
- Object.assign(stats, data.stats);
- }
- waterfallLines.value = data.waterfallLines || 0;
- dataPoints.value = spectrum.length;
- if (renderer) {
- const renderData = { spectrum };
- if (spectrumConfig.maxHold)
- renderData.maxHold = maxHold;
- if (spectrumConfig.minHold)
- renderData.minHold = minHold;
- if (spectrumConfig.avgHold)
- renderData.avg = avg;
- if (spectrumConfig.waterfallEnabled) {
- renderData.waterfall = data.waterfall;
- }
- renderer.setData(renderData);
- }
- emit('dataUpdate', { spectrum, stats, waterfall: data.waterfall });
+
+const startInstanceRenderLoop = (instance) => {
+  const render = () => {
+    if (instance.renderer) instance.renderer.render();
+    instance.animationId = requestAnimationFrame(render);
+  };
+  render();
 };
-const generateMockData = () => {
- if (!isPlaying.value || isPlaybackMode.value)
- return;
- const points = Math.floor(spectrumConfig.span / spectrumConfig.freqResolution);
- const minLevel = spectrumConfig.refLevel - 100;
- const maxLevel = spectrumConfig.refLevel;
- const data = generateSpectrumData(points, minLevel, maxLevel, spectrumConfig.centerFreq, spectrumConfig.span);
- if (worker) {
- worker.postMessage({
- type: 'processSpectrum',
- data: data
- });
- }
- else {
- const s = calcSpectrumStats(data);
- Object.assign(stats, s);
- dataPoints.value = data.length;
- if (renderer) {
- renderer.setData({ spectrum: data });
- }
- }
+
+const stopInstanceRenderLoop = (instance) => {
+  if (instance.animationId) {
+    cancelAnimationFrame(instance.animationId);
+    instance.animationId = null;
+  }
 };
-const startDataLoop = () => {
- if (dataTimer)
- clearInterval(dataTimer);
- dataTimer = setInterval(generateMockData, spectrumConfig.sweepTime);
+
+const startInstanceDataLoop = (instance) => {
+  if (instance.dataTimer) clearInterval(instance.dataTimer);
+  instance.dataTimer = setInterval(() => {
+    generateInstanceData(instance);
+  }, instance.config.sweepTime);
 };
-const stopDataLoop = () => {
- if (dataTimer) {
- clearInterval(dataTimer);
- dataTimer = null;
- }
+
+const stopInstanceDataLoop = (instance) => {
+  if (instance.dataTimer) {
+    clearInterval(instance.dataTimer);
+    instance.dataTimer = null;
+  }
 };
-const renderLoop = () => {
- if (renderer) {
- renderer.render();
- }
- animationId = requestAnimationFrame(renderLoop);
+
+const generateInstanceData = (instance) => {
+  if (!instance.isPlaying) return;
+  const points = Math.max(10, Math.floor(instance.config.span / instance.config.freqResolution));
+  const minLevel = instance.config.refLevel - 100;
+  const maxLevel = instance.config.refLevel;
+  const data = generateSpectrumData(points, minLevel, maxLevel, instance.config.centerFreq, instance.config.span);
+  
+  let max = -Infinity, min = Infinity, sum = 0, maxIndex = 0, minIndex = 0;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] > max) { max = data[i]; maxIndex = i; }
+    if (data[i] < min) { min = data[i]; minIndex = i; }
+    sum += data[i];
+  }
+  instance.stats.max = max;
+  instance.stats.min = min;
+  instance.stats.avg = sum / data.length;
+  instance.stats.maxIndex = maxIndex;
+  instance.stats.minIndex = minIndex;
+  
+  if (instance.renderer) {
+    instance.renderer.setData({ spectrum: data });
+    if (instance.config.waterfallEnabled) {
+      instance.renderer.addWaterfallLine(data);
+    }
+    // 录制时保存帧数据
+    if (instance.isRecording) {
+      instance.recordedFrames.push({
+        timestamp: Date.now(),
+        spectrum: Array.from(data),
+        centerFreq: instance.config.centerFreq,
+        span: instance.config.span,
+        refLevel: instance.config.refLevel
+      });
+    }
+  }
 };
-const onMouseDown = (e) => {
- const rect = spectrumCanvas.value.getBoundingClientRect();
- const x = e.clientX - rect.left;
- const y = e.clientY - rect.top;
- if (renderer?.isInWaterfall(x, y)) {
- isMouseDown.value = true;
- boxSelection.value = { startX: x, startY: y, endX: x, endY: y };
- renderer.setBoxSelection(boxSelection.value);
- }
+
+const toggleInstanceWaterfall = (instance) => {
+  instance.config.waterfallEnabled = !instance.config.waterfallEnabled;
+  if (instance.renderer) {
+    const canvasRect = instance.canvas.getBoundingClientRect();
+    const waterfallHeight = instance.config.waterfallEnabled ? (canvasRect.height * 0.5) : 0;
+    instance.renderer.setConfig({ waterfallHeight });
+    if (!instance.config.waterfallEnabled) {
+      instance.renderer.clearWaterfall();
+      instance.renderer.waterfallData = [];
+    }
+    instance.renderer.resize();
+  }
 };
-const onMouseMove = (e) => {
- const rect = spectrumCanvas.value.getBoundingClientRect();
- const x = e.clientX - rect.left;
- const y = e.clientY - rect.top;
- if (isMouseDown.value && boxSelection.value) {
- boxSelection.value.endX = x;
- boxSelection.value.endY = y;
- if (renderer) {
- renderer.setBoxSelection(boxSelection.value);
- }
- }
+
+const toggleInstanceMaxHold = (instance) => {
+  instance.config.maxHold = !instance.config.maxHold;
+  if (instance.renderer) {
+    instance.renderer.setConfig({ maxHold: instance.config.maxHold });
+  }
 };
-const onMouseUp = (e) => {
- if (isMouseDown.value && boxSelection.value) {
- const rect = spectrumCanvas.value.getBoundingClientRect();
- const x = e.clientX - rect.left;
- const y = e.clientY - rect.top;
- boxSelection.value.endX = x;
- boxSelection.value.endY = y;
- const width = Math.abs(boxSelection.value.endX - boxSelection.value.startX);
- const height = Math.abs(boxSelection.value.endY - boxSelection.value.startY);
- if (width > 5 && height > 5) {
- performBoxSelect();
- }
- else {
- boxSelection.value = null;
- if (renderer)
- renderer.setBoxSelection(null);
- }
- }
- isMouseDown.value = false;
+
+const toggleInstanceMinHold = (instance) => {
+  instance.config.minHold = !instance.config.minHold;
+  if (instance.renderer) {
+    instance.renderer.setConfig({ minHold: instance.config.minHold });
+  }
 };
-const onMouseLeave = () => {
- isMouseDown.value = false;
+
+const toggleInstanceRecording = (instance) => {
+  if (instance.isRecording) {
+    // 停止录制
+    instance.isRecording = false;
+    if (instance.recordingTimer) {
+      clearInterval(instance.recordingTimer);
+      instance.recordingTimer = null;
+    }
+    if (instance.recordingInterval) {
+      clearInterval(instance.recordingInterval);
+      instance.recordingInterval = null;
+    }
+    instance.recordingCountdown = 10;
+    // 导出录制文件
+    exportRecording(instance);
+    ElMessage.success('录制完成，文件已导出');
+  } else {
+    // 开始录制
+    instance.isRecording = true;
+    instance.recordingCountdown = 10.0;
+    instance.recordedFrames = [];
+    
+    // 100ms精度的倒计时
+    instance.recordingInterval = setInterval(() => {
+      instance.recordingCountdown = Math.max(0, instance.recordingCountdown - 0.1);
+      // 精确到小数点一位
+      instance.recordingCountdown = Math.round(instance.recordingCountdown * 10) / 10;
+      if (instance.recordingCountdown <= 0) {
+        // 倒计时结束，自动停止录制
+        if (instance.isRecording) {
+          toggleInstanceRecording(instance);
+        }
+      }
+    }, 100);
+    
+    ElMessage.success('开始录制');
+  }
 };
-const onCanvasClick = (e) => {
- if (isMouseDown.value)
- return;
- const rect = spectrumCanvas.value.getBoundingClientRect();
- const x = e.clientX - rect.left;
- const y = e.clientY - rect.top;
- if (renderer && !renderer.isInWaterfall(x, y)) {
- levelIndicatorPos.value = { x, y };
- renderer.setLevelIndicator({ x, y });
- emit('levelIndicatorChange', { x, y });
- }
+
+const exportRecording = (instance) => {
+  if (!instance.recordedFrames || instance.recordedFrames.length === 0) {
+    ElMessage.warning('没有录制数据');
+    return;
+  }
+  
+  const recordingData = {
+    version: '1.0',
+    exportTime: new Date().toISOString(),
+    totalFrames: instance.recordedFrames.length,
+    frames: instance.recordedFrames
+  };
+  
+  const jsonStr = JSON.stringify(recordingData, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = `spectrum-recording-${Date.now()}.json`;
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+  
+  instance.recordedFrames = [];
 };
-const onContextMenu = (e) => {
- const rect = spectrumCanvas.value.getBoundingClientRect();
- const x = e.clientX - rect.left;
- const y = e.clientY - rect.top;
- const points = dataPoints.value;
- const index = renderer?.getIndexAtX(x, points);
- if (index >= 0 && !renderer?.isInWaterfall(x, y)) {
- const freq = spectrumConfig.centerFreq - spectrumConfig.span / 2 + (index / (points - 1)) * spectrumConfig.span;
- const level = stats.max;
- markers.value.push({
- id: Date.now(),
- index,
- freq,
- level,
- note: ''
- });
- ElMessage.success('已添加标记');
- emit('markerAdd', { index, freq, level });
- }
+
+const destroyInstance = (instance) => {
+  stopInstanceDataLoop(instance);
+  stopInstanceRenderLoop(instance);
+  if (instance.recordingTimer) {
+    clearInterval(instance.recordingTimer);
+    instance.recordingTimer = null;
+  }
+  if (instance.recordingInterval) {
+    clearInterval(instance.recordingInterval);
+    instance.recordingInterval = null;
+  }
+  instance.renderer = null;
 };
-const removeMarker = (id) => {
- markers.value = markers.value.filter(m => m.id !== id);
- emit('markerRemove', id);
+
+const setCanvasRef = (id, el) => {
+  if (el) {
+    canvasRefs[id] = el;
+    const instance = instances.value.find(i => i.id === id);
+    if (instance && !instance.renderer) {
+      nextTick(() => {
+        instance.canvas = el;
+        initInstanceRenderer(instance, el);
+        startInstanceDataLoop(instance);
+      });
+    }
+  }
 };
-const clearAllMarkers = () => {
- markers.value = [];
- ElMessage.info('已清除所有标记');
+
+const createInstance = () => {
+  instanceIdCounter++;
+  const id = instanceIdCounter;
+  const instance = reactive(createInstanceData(id));
+  instances.value.push(instance);
+  activeInstanceId.value = id;
+  return instance;
 };
-const performBoxSelect = () => {
- if (!renderer || !boxSelection.value)
- return;
- const pos1 = renderer.getWaterfallPos(boxSelection.value.startX, boxSelection.value.startY);
- const pos2 = renderer.getWaterfallPos(boxSelection.value.endX, boxSelection.value.endY);
- if (!pos1 || !pos2)
- return;
- if (worker) {
- worker.postMessage({
- type: 'boxSelectWaterfall',
- data: {
- startX: Math.min(pos1.indexX, pos2.indexX),
- endX: Math.max(pos1.indexX, pos2.indexX),
- startY: Math.min(pos1.indexY, pos2.indexY),
- endY: Math.max(pos1.indexY, pos2.indexY)
- }
- });
- }
+
+const addInstance = () => {
+  if (instances.value.length >= 6) {
+    ElMessage.warning('最多只能添加6个频谱组件');
+    return;
+  }
+  createInstance();
+  nextTick(() => {
+    handleResize();
+  });
+  ElMessage.success('已添加频谱组件');
 };
-const handleBoxSelectResult = (data) => {
- boxSelectResult.value = data;
- const points = dataPoints.value;
- data.bounds.freqStart = spectrumConfig.centerFreq - spectrumConfig.span / 2 + (data.bounds.xStart / (points - 1)) * spectrumConfig.span;
- data.bounds.freqEnd = spectrumConfig.centerFreq - spectrumConfig.span / 2 + (data.bounds.xEnd / (points - 1)) * spectrumConfig.span;
- showBoxSelectDialog.value = true;
+
+const removeInstance = (id) => {
+  const index = instances.value.findIndex(i => i.id === id);
+  if (index === 0) {
+    ElMessage.warning('第一个频谱组件不允许删除');
+    return;
+  }
+  const instance = instances.value[index];
+  destroyInstance(instance);
+  instances.value.splice(index, 1);
+  if (activeInstanceId.value === id) {
+    activeInstanceId.value = instances.value[0]?.id;
+  }
+  nextTick(() => {
+    handleResize();
+  });
+  ElMessage.success('已删除频谱组件');
 };
-const startPlayback = () => {
- if (!boxSelectResult.value)
- return;
- isPlaybackMode.value = true;
- playbackData.value = boxSelectResult.value.selected;
- playbackFrame.value = 0;
- isPlaybackPlaying.value = false;
- showBoxSelectDialog.value = false;
- boxSelection.value = null;
- if (renderer)
- renderer.setBoxSelection(null);
- ElMessage.info('进入回放模式');
+
+const setActiveInstance = (id) => {
+  activeInstanceId.value = id;
 };
-const togglePlayback = () => {
- isPlaybackPlaying.value = !isPlaybackPlaying.value;
- if (isPlaybackPlaying.value) {
- startPlaybackLoop();
- }
- else {
- stopPlaybackLoop();
- }
+
+const toggleWaterfall = (instance) => {
+  toggleInstanceWaterfall(instance);
 };
-const startPlaybackLoop = () => {
- if (playbackTimer)
- clearInterval(playbackTimer);
- playbackTimer = setInterval(() => {
- nextFrame();
- }, 100);
+
+const toggleMaxHold = (instance) => {
+  toggleInstanceMaxHold(instance);
 };
-const stopPlaybackLoop = () => {
- if (playbackTimer) {
- clearInterval(playbackTimer);
- playbackTimer = null;
- }
+
+const toggleMinHold = (instance) => {
+  toggleInstanceMinHold(instance);
 };
-const nextFrame = () => {
- if (playbackData.value.length === 0)
- return;
- switch (playMode.value) {
- case 'sequence':
- if (playbackFrame.value < playbackData.value.length - 1) {
- playbackFrame.value++;
- }
- else {
- isPlaybackPlaying.value = false;
- stopPlaybackLoop();
- }
- break;
- case 'loop':
- playbackFrame.value = (playbackFrame.value + 1) % playbackData.value.length;
- break;
- case 'random':
- playbackFrame.value = Math.floor(Math.random() * playbackData.value.length);
- break;
- }
- updatePlaybackDisplay();
+
+const toggleSampleMode = (instance) => {
+  instance.isFullSample = !instance.isFullSample;
+  ElMessage.info(instance.isFullSample ? '已切换为全样模式' : '已切换为抽样模式');
 };
 
 const handleSettingsCommand = (command, instance) => {
@@ -1124,146 +1071,216 @@ const applySettings = (instance) => {
   instance.settingsDialogVisible = false;
   ElMessage.success('设置已应用');
 };
-const exitPlayback = () => {
- isPlaybackMode.value = false;
- isPlaybackPlaying.value = false;
- stopPlaybackLoop();
- playbackData.value = [];
- playbackFrame.value = 0;
- if (renderer) {
- renderer.setTimeLine(0);
- }
- ElMessage.info('已退出回放模式');
+
+const showDetails = (instance) => {
+  instance.detailsDialogVisible = true;
 };
-const togglePlay = () => {
- isPlaying.value = !isPlaying.value;
+
+const takeSnapshot = (instance) => {
+  if (instance.renderer) {
+    const url = instance.renderer.takeSnapshot();
+    instance.snapshotUrl = url;
+    instance.snapshotDialogVisible = true;
+  }
 };
-const takeSnapshot = () => {
- if (renderer) {
- snapshotUrl.value = renderer.takeSnapshot();
- showSnapshotDialog.value = true;
- }
+
+const downloadSnapshot = (instance) => {
+  const link = document.createElement('a');
+  link.download = `spectrum-${Date.now()}.png`;
+  link.href = instance.snapshotUrl;
+  link.click();
+  ElMessage.success('快照已保存');
 };
-const downloadSnapshot = () => {
- const link = document.createElement('a');
- link.download = `spectrum-${Date.now()}.png`;
- link.href = snapshotUrl.value;
- link.click();
+
+const showDeleteConfirm = (instance) => {
+  instance.deleteConfirmVisible = true;
 };
-const toggleRecording = () => {
- if (!worker)
- return;
- isRecording.value = !isRecording.value;
- if (isRecording.value) {
- worker.postMessage({ type: 'startRecording' });
- }
- else {
- worker.postMessage({ type: 'stopRecording' });
- }
+
+const confirmDelete = (instance) => {
+  instance.deleteConfirmVisible = false;
+  const index = instances.value.findIndex(i => i.id === instance.id);
+  if (index === 0) {
+    ElMessage.warning('第一个频谱组件不允许删除');
+    return;
+  }
+  destroyInstance(instance);
+  instances.value.splice(index, 1);
+  if (activeInstanceId.value === instance.id) {
+    activeInstanceId.value = instances.value[0]?.id;
+  }
+  nextTick(() => {
+    handleResize();
+  });
+  ElMessage.success('已删除频谱组件');
 };
-const onRendererChange = (useWebGL) => {
- initRenderer(useWebGL);
- ElMessage.success(`已切换到${useWebGL ? 'WebGL' : 'Canvas'}渲染`);
+
+let savedScrollTop = 0;
+
+const toggleFullscreen = (instance) => {
+  if (!instance.isFullscreen) {
+    instances.value.forEach(i => {
+      if (i.id !== instance.id && i.isFullscreen) {
+        i.isFullscreen = false;
+      }
+    });
+    if (instancesContainer.value) {
+      savedScrollTop = instancesContainer.value.scrollTop;
+    }
+  }
+  instance.isFullscreen = !instance.isFullscreen;
+  nextTick(() => {
+    handleResize();
+    if (!instance.isFullscreen && instancesContainer.value) {
+      instancesContainer.value.scrollTop = savedScrollTop;
+    }
+  });
 };
+
+const toggleRecording = (instance) => {
+  toggleInstanceRecording(instance);
+};
+
+const onMouseDown = (e, instance) => {
+  if (e.button === 0 && instance.renderer) {
+    const rect = instance.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (instance.renderer.isInPlotArea(x, y)) {
+      instance.isBoxSelecting = true;
+      instance.boxSelection.startX = x;
+      instance.boxSelection.startY = y;
+      instance.boxSelection.endX = x;
+      instance.boxSelection.endY = y;
+      instance.renderer.setBoxSelection({ ...instance.boxSelection });
+      instance.hoverInfo = null;
+    }
+  }
+};
+
+const onMouseMove = (e, instance) => {
+  const rect = instance.canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  if (instance.isBoxSelecting) {
+    instance.boxSelection.endX = x;
+    instance.boxSelection.endY = y;
+    instance.renderer.setBoxSelection({ ...instance.boxSelection });
+    instance.renderer.setMousePosition(null);
+  }
+  
+  if (!instance.isBoxSelecting && instance.renderer && instance.renderer.isInPlotArea(x, y)) {
+    instance.renderer.setMousePosition({ x, y });
+    
+    const freq = instance.renderer.getFreqAtX(x);
+    const level = instance.renderer.getLevelAtY(y);
+    
+    const skyFreq = (freq / 1e6).toFixed(3);
+    const accessFreq = ((freq - 10700000) / 1e6).toFixed(3);
+    const lvl = level !== null ? level.toFixed(2) : '-';
+    
+    instance.hoverInfo = { skyFreq, accessFreq, level: lvl };
+    instance.hoverPosition.x = e.clientX + 15;
+    instance.hoverPosition.y = e.clientY - 10;
+  } else if (!instance.isBoxSelecting) {
+    instance.renderer?.setMousePosition(null);
+    instance.hoverInfo = null;
+  }
+  
+  if (instance.renderer?.boxSelection) {
+    const selection = instance.renderer.boxSelection;
+    const selX = Math.min(selection.startX, selection.endX);
+    const selWidth = Math.abs(selection.endX - selection.startX);
+    if (x >= selX && x <= selX + selWidth) {
+      const startFreq = instance.renderer.getFreqAtX(selX);
+      const endFreq = instance.renderer.getFreqAtX(selX + selWidth);
+      const centerFreq = (startFreq + endFreq) / 2;
+      const bandwidth = endFreq - startFreq;
+      
+      const skyCenterFreq = (centerFreq / 1e6).toFixed(3);
+      const accessCenterFreq = ((centerFreq - 10700000) / 1e6).toFixed(3);
+      const bw = (bandwidth / 1e6).toFixed(3);
+      
+      const points = instance.renderer.spectrumData?.length || 1;
+      const startIndex = Math.round(((selX - instance.renderer.plotArea.x) / instance.renderer.plotArea.width) * (points - 1));
+      const endIndex = Math.round((((selX + selWidth) - instance.renderer.plotArea.x) / instance.renderer.plotArea.width) * (points - 1));
+      const clampedStart = Math.max(0, startIndex);
+      const clampedEnd = Math.min(points - 1, endIndex);
+      
+      let avgLevel = 0;
+      let count = 0;
+      for (let i = clampedStart; i <= clampedEnd; i++) {
+        avgLevel += instance.renderer.spectrumData[i];
+        count++;
+      }
+      const avgDbm = count > 0 ? (avgLevel / count).toFixed(2) : '-';
+      
+      instance.boxInfo = {
+        skyCenterFreq,
+        accessCenterFreq,
+        bandwidth: bw,
+        level: avgDbm
+      };
+      instance.boxInfoPosition.x = e.clientX + 15;
+      instance.boxInfoPosition.y = e.clientY - 10;
+    } else {
+      instance.boxInfo = null;
+    }
+  }
+};
+
+const onMouseUp = (e, instance) => {
+  if (instance.isBoxSelecting) {
+    instance.isBoxSelecting = false;
+    const width = Math.abs(instance.boxSelection.endX - instance.boxSelection.startX);
+    if (width < 5) {
+      if (instance.renderer) {
+        instance.renderer.setBoxSelection(null);
+      }
+    }
+  }
+};
+
+const onMouseLeave = (e, instance) => {
+  instance.isBoxSelecting = false;
+  instance.hoverInfo = null;
+  if (instance.renderer) {
+    instance.renderer.setMousePosition(null);
+  }
+};
+
+const onWheel = (e, instance) => {
+  const rect = instance.canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  if (instance.renderer && instance.renderer.isInPlotArea(x, y)) {
+    const factor = e.deltaY > 0 ? 0.9 : 1.1;
+    instance.renderer.zoomAt(x, y, factor, factor);
+  }
+};
+
 const handleResize = () => {
- if (renderer) {
- renderer.resize();
- }
+  instances.value.forEach(instance => {
+    if (instance.renderer) {
+      // 重新计算瀑布图高度
+      const canvasRect = instance.canvas?.getBoundingClientRect();
+      if (canvasRect && instance.config.waterfallEnabled) {
+        const newWaterfallHeight = canvasRect.height * 0.5;
+        instance.renderer.setConfig({ waterfallHeight: newWaterfallHeight });
+      }
+      instance.renderer.resize();
+    }
+  });
 };
-watch(() => spectrumConfig.refLevel, (newVal) => {
- if (renderer) {
- renderer.setConfig({ refLevel: newVal });
- }
- if (worker) {
- worker.postMessage({
- type: 'updateConfig',
- config: {
- minLevel: newVal - 100,
- maxLevel: newVal
- }
- });
- }
+
+onMounted(() => {
+  createInstance();
+  window.addEventListener('resize', handleResize);
 });
-watch(() => spectrumConfig.waterfallHeight, (newVal) => {
- if (renderer) {
- renderer.setConfig({ waterfallHeight: newVal });
- }
-});
-watch(() => spectrumConfig.centerFreq, (newVal) => {
- if (renderer) {
- renderer.setConfig({ centerFreq: newVal });
- }
-});
-watch(() => spectrumConfig.span, (newVal) => {
- if (renderer) {
- renderer.setConfig({ span: newVal });
- }
- if (worker) {
- const points = Math.floor(newVal / spectrumConfig.freqResolution);
- worker.postMessage({
- type: 'init',
- config: {
- span: newVal,
- freqResolution: spectrumConfig.freqResolution,
- waterfallMaxLines: 200,
- minLevel: spectrumConfig.refLevel - 100,
- maxLevel: spectrumConfig.refLevel
- }
- });
- }
-});
-watch(() => spectrumConfig.sweepTime, () => {
- if (isPlaying.value) {
- startDataLoop();
- }
-});
-watch(() => props.subscribeParams, (newParams) => {
- if (newParams.centerFreq)
- spectrumConfig.centerFreq = newParams.centerFreq;
- if (newParams.span)
- spectrumConfig.span = newParams.span;
- if (newParams.freqResolution)
- spectrumConfig.freqResolution = newParams.freqResolution;
-}, { deep: true });
-onMounted(async () => {
- await nextTick();
- initWorker();
- initRenderer(spectrumConfig.useWebGL);
- renderLoop();
- startDataLoop();
- window.addEventListener('resize', handleResize);
- try {
- const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
- const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
- await wsManager.connect(wsUrl);
- wsManager.send('subscribe', { channel: 'spectrum' });
- wsManager.subscribe('spectrumData', (data) => {
- if (worker && isPlaying.value && !isPlaybackMode.value) {
- stopDataLoop();
- const floatData = new Float32Array(data.data);
- worker.postMessage({
- type: 'processSpectrum',
- data: floatData
- });
- }
- });
- }
- catch (e) {
- console.log('WebSocket连接失败，使用模拟数据');
- }
-});
+
 onUnmounted(() => {
- stopDataLoop();
- stopPlaybackLoop();
- if (animationId) {
- cancelAnimationFrame(animationId);
- }
- if (worker) {
- worker.terminate();
- worker = null;
- }
- window.removeEventListener('resize', handleResize);
- wsManager.disconnect();
+  window.removeEventListener('resize', handleResize);
+  instances.value.forEach(instance => destroyInstance(instance));
 });
 </script>
 
@@ -1271,59 +1288,74 @@ onUnmounted(() => {
 .spectrum-container {
   width: 100%;
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: #0a1929;
+  background: #0a1628;
+  overflow: hidden;
 }
 
-.spectrum-header {
+.spectrum-instances {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: relative;
+}
+
+.spectrum-instance {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #1e4976;
+  background: #0a1628;
+  overflow: hidden;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.spectrum-instance.active {
+  border-color: #3a6b9c;
+}
+
+.spectrum-instance.fullscreen {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+}
+
+.instance-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
-  background: linear-gradient(180deg, #132f4c 0%, #0a1929 100%);
+  padding: 6px 12px;
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
   border-bottom: 1px solid #1e4976;
-  gap: 20px;
+  flex-shrink: 0;
 }
 
-.header-left .title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #66b2ff;
+.toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
-.header-center {
-  flex: 1;
+.toolbar-right {
   display: flex;
-  justify-content: center;
+  align-items: center;
 }
 
-.spectrum-main {
-  flex: 1;
+.toolbar-buttons {
   display: flex;
-  overflow: hidden;
+  gap: 4px;
+  align-items: center;
 }
 
-.spectrum-content {
+.instance-canvas-container {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 10px;
-  gap: 10px;
-  overflow: hidden;
-}
-
-.canvas-wrapper {
   position: relative;
-  flex: 1;
   background: #000;
-  border: 1px solid #1e4976;
-  border-radius: 4px;
   overflow: hidden;
-  min-height: 300px;
+  min-height: 0;
 }
 
 .spectrum-canvas {
@@ -1333,113 +1365,604 @@ onUnmounted(() => {
   cursor: crosshair;
 }
 
-.level-indicator-info {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.8);
-  border: 1px solid #ff5722;
-  padding: 8px 12px;
+.hover-info-box {
+  position: fixed;
+  background: rgba(10, 30, 60, 0.95);
+  border: 1px solid #3a8fd4;
   border-radius: 4px;
-  font-size: 12px;
-  font-family: monospace;
-  color: #ff5722;
+  padding: 12px 16px;
+  min-width: 220px;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
-.info-bar {
+.box-info-box {
+  position: fixed;
+  background: rgba(10, 30, 60, 0.95);
+  border: 1px solid #3a8fd4;
+  border-radius: 4px;
+  padding: 12px 16px;
+  min-width: 280px;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.info-row {
   display: flex;
-  gap: 20px;
-  padding: 8px 12px;
-  background: #0d2137;
-  border: 1px solid #1e4976;
-  border-radius: 4px;
-  font-size: 13px;
-  flex-wrap: wrap;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(58, 143, 212, 0.2);
 }
 
-.info-item {
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  flex: 1;
+  color: #8ab4d8;
+  font-size: 14px;
+}
+
+.info-value {
+  color: #fff;
+  font-size: 16px;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+.info-unit {
+  color: #8ab4d8;
+  font-size: 13px;
+  width: 40px;
+  text-align: right;
+}
+
+.instance-footer {
+  display: flex;
+  gap: 30px;
+  padding: 6px 16px;
+  background: #0f2a44;
+  border-top: 1px solid #1e4976;
+  font-size: 12px;
+  color: #66b2ff;
+  flex-shrink: 0;
+}
+
+.footer-item {
+  color: #8ab4d8;
+}
+
+/* ============================================
+   统一弹窗样式 - 暗色科技风格
+   ============================================ */
+
+/* 弹窗公共样式 */
+:deep(.el-dialog) {
+  background: linear-gradient(180deg, #0d1f35 0%, #0a1628 100%);
+  border: 1px solid #1e4976;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+:deep(.el-dialog__header) {
+  border-bottom: 1px solid rgba(30, 73, 118, 0.6);
+  padding: 18px 24px;
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
+  margin-right: 0;
+}
+
+:deep(.el-dialog__title) {
+  color: #8ab4d8;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+:deep(.el-dialog__body) {
+  padding: 0;
+  color: #c0c4cc;
+  background: #0a1628;
+}
+
+:deep(.el-dialog__footer) {
+  border-top: 1px solid rgba(30, 73, 118, 0.6);
+  padding: 16px 24px;
+  background: linear-gradient(180deg, #0f2a44 0%, #0d1f35 100%);
+}
+
+:deep(.el-dialog__headerbtn) {
+  top: 18px;
+  right: 20px;
+}
+
+:deep(.el-dialog__close) {
+  color: #66b2ff;
+  font-size: 18px;
+}
+
+:deep(.el-dialog__close:hover) {
+  color: #8ab4d8;
+}
+
+:deep(.el-overlay) {
+  background-color: rgba(0, 10, 30, 0.75);
+}
+
+/* 对话框底部按钮区 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-icon {
+  margin-right: 4px;
+}
+
+/* ============================================
+   设置弹窗样式
+   ============================================ */
+.settings-panel {
+  padding: 20px 24px;
+}
+
+.settings-section {
+  margin-bottom: 16px;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  color: #66b2ff;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding-left: 8px;
+  border-left: 3px solid #3a8fd4;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.info-label {
-  color: #66b2ff;
+.section-icon {
+  font-size: 14px;
+  opacity: 0.8;
 }
 
-.info-value {
-  color: #fff;
-  font-family: 'Courier New', monospace;
+.settings-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(58, 143, 212, 0.3) 50%, transparent 100%);
+  margin: 16px 0;
 }
 
-.info-value.peak {
-  color: #ff6b6b;
-  font-weight: bold;
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.bottom-bar {
-  flex-shrink: 0;
-}
-
-.spectrum-settings {
-  width: 340px;
-  border-left: 1px solid #1e4976;
-  background: #0d2137;
-  overflow-y: auto;
-  flex-shrink: 0;
-}
-
-.playback-controls {
+.form-row {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 10px 15px;
-  background: #132f4c;
-  border: 1px solid #1e4976;
-  border-radius: 4px;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(15, 42, 68, 0.5);
+  border: 1px solid rgba(30, 73, 118, 0.3);
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
-.playback-info {
+.form-row:hover {
+  background: rgba(15, 42, 68, 0.8);
+  border-color: rgba(58, 143, 212, 0.4);
+}
+
+.form-label {
+  color: #8ab4d8;
   font-size: 13px;
-  color: #66b2ff;
-  font-family: monospace;
-  white-space: nowrap;
-}
-
-.markers-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.empty-tip {
-  text-align: center;
-  padding: 40px;
-  color: #888;
-}
-
-.marker-item {
+  font-weight: 500;
   display: flex;
   align-items: center;
-  padding: 8px;
-  border-bottom: 1px solid #1e4976;
+  gap: 6px;
+}
+
+.label-icon {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.form-control {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.marker-info {
+.unit {
+  color: #5a7a9a;
+  font-size: 12px;
+  min-width: 36px;
+  text-align: left;
+}
+
+/* ============================================
+   详情弹窗样式 - 卡片式布局
+   ============================================ */
+.details-panel {
+  padding: 20px 24px;
+}
+
+.details-section {
+  margin-bottom: 16px;
+}
+
+.details-section:last-child {
+  margin-bottom: 0;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.detail-card {
+  background: rgba(15, 42, 68, 0.5);
+  border: 1px solid rgba(30, 73, 118, 0.3);
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: all 0.2s ease;
+}
+
+.detail-card:hover {
+  background: rgba(15, 42, 68, 0.8);
+  border-color: rgba(58, 143, 212, 0.4);
+  transform: translateY(-1px);
+}
+
+.detail-label {
+  color: #5a7a9a;
+  font-size: 12px;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+.detail-value {
+  color: #ffffff;
+  font-size: 15px;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.detail-value.highlight {
+  color: #00ff88;
+  font-weight: 600;
+}
+
+.detail-value.status-on {
+  color: #00ff88;
+}
+
+.detail-value.status-off {
+  color: #ff6b6b;
+}
+
+.details-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(58, 143, 212, 0.3) 50%, transparent 100%);
+  margin: 16px 0;
+}
+
+/* ============================================
+   快照弹窗样式
+   ============================================ */
+.snapshot-panel {
+  padding: 20px 24px;
+}
+
+.snapshot-image-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(30, 73, 118, 0.4);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.snapshot-image {
+  max-width: 100%;
+  max-height: 380px;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.snapshot-info {
+  text-align: center;
+  color: #5a7a9a;
+  font-size: 12px;
+}
+
+.snapshot-time {
+  font-family: 'Courier New', monospace;
+}
+
+/* ============================================
+   删除确认弹窗样式
+   ============================================ */
+.delete-panel {
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.delete-icon {
+  font-size: 48px;
+  color: #d9363e;
+  opacity: 0.8;
+}
+
+.delete-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.delete-title {
+  color: #c0c4cc;
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.delete-warning {
+  color: #d9363e;
+  font-size: 13px;
+  margin: 0;
+  opacity: 0.8;
+}
+
+/* ============================================
+   Element Plus 组件覆盖样式
+   ============================================ */
+
+:deep(.el-button) {
   font-size: 12px;
-  font-family: monospace;
-  min-width: 150px;
+  padding: 5px 14px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
-.marker-id {
-  color: #ffeb3b;
-  font-weight: bold;
+:deep(.el-button--small) {
+  padding: 5px 14px;
+  font-size: 12px;
+  border-radius: 4px;
 }
 
-.box-select-info {
-  padding: 10px 0;
+:deep(.el-button--primary) {
+  background: linear-gradient(180deg, #2d7dd2 0%, #1a5fa0 100%);
+  border-color: #3a8fd4;
+}
+
+:deep(.el-button--primary:hover) {
+  background: linear-gradient(180deg, #3a8fd4 0%, #2d7dd2 100%);
+  border-color: #4da6e8;
+  box-shadow: 0 2px 8px rgba(45, 125, 210, 0.3);
+}
+
+:deep(.el-button--danger) {
+  background: linear-gradient(180deg, #d9363e 0%, #b92b33 100%);
+  border-color: #dc484f;
+}
+
+:deep(.el-button--danger:hover) {
+  background: linear-gradient(180deg, #e6454c 0%, #d9363e 100%);
+  border-color: #e85a61;
+  box-shadow: 0 2px 8px rgba(217, 54, 62, 0.3);
+}
+
+:deep(.el-button--default) {
+  background: rgba(15, 42, 68, 0.6);
+  border-color: #1e4976;
+  color: #8ab4d8;
+}
+
+:deep(.el-button--default:hover) {
+  background: rgba(15, 42, 68, 0.9);
+  border-color: #3a8fd4;
+  color: #8ab4d8;
+}
+
+/* Input Number */
+:deep(.el-input-number) {
+  width: 120px;
+}
+
+:deep(.el-input-number .el-input__wrapper) {
+  background: #0a1628;
+  border: 1px solid #1e4976;
+  box-shadow: none;
+  border-radius: 4px;
+  padding: 0 8px;
+}
+
+:deep(.el-input-number .el-input__wrapper:hover) {
+  border-color: #3a8fd4;
+}
+
+:deep(.el-input-number .el-input__inner) {
+  color: #fff;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+}
+
+:deep(.el-input-number__decrease),
+:deep(.el-input-number__increase) {
+  background: #153a5c;
+  border-color: #1e4976;
+  color: #66b2ff;
+}
+
+:deep(.el-input-number__decrease:hover),
+:deep(.el-input-number__increase:hover) {
+  background: #1e4976;
+  color: #fff;
+}
+
+/* Select */
+:deep(.el-select) {
+  width: 140px;
+}
+
+:deep(.el-select__wrapper),
+:deep(.el-select .el-input__wrapper),
+:deep(.el-select .el-input) {
+  background: #0a1628 !important;
+  border: 1px solid #1e4976 !important;
+  box-shadow: none !important;
+}
+
+:deep(.el-select__wrapper:hover),
+:deep(.el-select .el-input__wrapper:hover) {
+  border-color: #3a8fd4 !important;
+}
+
+:deep(.el-select__wrapper.is-focus),
+:deep(.el-select .el-input__wrapper.is-focus) {
+  border-color: #3a8fd4 !important;
+  box-shadow: 0 0 0 2px rgba(58, 143, 212, 0.1) !important;
+}
+
+:deep(.el-select__input),
+:deep(.el-select .el-input__inner) {
+  color: #fff !important;
+  background: transparent !important;
+}
+
+:deep(.el-select__suffix),
+:deep(.el-select .el-input__suffix) {
+  color: #66b2ff !important;
+}
+
+:deep(.el-select-dropdown) {
+  background: #0f2a44 !important;
+  border: 1px solid #1e4976 !important;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.el-select-dropdown__item) {
+  color: #66b2ff !important;
+  padding: 10px 16px;
+  font-size: 13px;
+  background: transparent !important;
+}
+
+:deep(.el-select-dropdown__item:hover) {
+  background: rgba(58, 143, 212, 0.15) !important;
+}
+
+:deep(.el-select-dropdown__item.selected) {
+  color: #8ab4d8 !important;
+  background: rgba(58, 143, 212, 0.25) !important;
+  font-weight: 500;
+}
+
+:deep(.el-select-dropdown__item.empty),
+:deep(.el-select-dropdown__item.placeholder) {
+  background: #0f2a44 !important;
+  color: #5a7a9a !important;
+}
+
+/* Switch */
+:deep(.el-switch__core) {
+  background: #1e4976;
+  border-color: #1e4976;
+}
+
+:deep(.el-switch.is-checked .el-switch__core) {
+  background: #2d7dd2;
+  border-color: #2d7dd2;
+}
+
+:deep(.el-switch__label) {
+  color: #5a7a9a;
+  font-size: 12px;
+}
+
+:deep(.el-switch__label.is-active) {
+  color: #8ab4d8;
+}
+
+/* Dropdown */
+:deep(.el-dropdown-menu) {
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
+  border: 1px solid #1e4976;
+  border-radius: 6px;
+  padding: 6px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.el-dropdown-menu__item) {
+  color: #66b2ff;
+  font-size: 13px;
+  padding: 10px 16px;
+}
+
+:deep(.el-dropdown-menu__item:hover) {
+  background: rgba(58, 143, 212, 0.15);
+  color: #8ab4d8;
+}
+
+/* Message */
+:deep(.el-message) {
+  background: linear-gradient(180deg, #153a5c 0%, #0f2a44 100%);
+  border: 1px solid #1e4976;
+  color: #8ab4d8;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+:deep(.el-message--success) {
+  background: linear-gradient(180deg, #1a3d2c 0%, #0f2918 100%);
+  border-color: #2d6a4f;
+}
+
+:deep(.el-message--warning) {
+  background: linear-gradient(180deg, #3d3a1a 0%, #29260f 100%);
+  border-color: #6a5a2d;
+}
+
+:deep(.el-message--danger) {
+  background: linear-gradient(180deg, #3d1a1a 0%, #290f0f 100%);
+  border-color: #6a2d2d;
+}
+
+/* 滚动条 */
+.spectrum-instances::-webkit-scrollbar {
+  width: 8px;
+}
+
+.spectrum-instances::-webkit-scrollbar-track {
+  background: #0a1628;
+}
+
+.spectrum-instances::-webkit-scrollbar-thumb {
+  background: #1e4976;
+  border-radius: 4px;
+}
+
+.spectrum-instances::-webkit-scrollbar-thumb:hover {
+  background: #3a6b9c;
 }
 </style>
