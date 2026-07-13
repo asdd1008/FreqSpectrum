@@ -920,8 +920,17 @@ const setCanvasRef = (id, el) => {
     if (instance && !instance.renderer) {
       nextTick(() => {
         instance.canvas = el;
-        const overlayEl = overlayCanvasRefs[id];
-        initInstanceRenderer(instance, el, overlayEl);
+        // WebGL模式下需要等待overlay canvas就绪
+        if (instance.config.useWebGL) {
+          const overlayEl = overlayCanvasRefs[id];
+          if (!overlayEl) {
+            setTimeout(() => setCanvasRef(id, el), 50);
+            return;
+          }
+          initInstanceRenderer(instance, el, overlayEl);
+        } else {
+          initInstanceRenderer(instance, el, null);
+        }
         startInstanceDataLoop(instance);
       });
     }
@@ -932,8 +941,16 @@ const setOverlayCanvasRef = (id, el) => {
   if (el) {
     overlayCanvasRefs[id] = el;
     const instance = instances.value.find(i => i.id === id);
-    if (instance && instance.renderer && instance.config.useWebGL) {
-      instance.renderer.setOverlayCanvas(el);
+    if (instance && instance.config.useWebGL) {
+      if (instance.renderer) {
+        instance.renderer.setOverlayCanvas(el);
+      } else {
+        const canvasEl = canvasRefs[id];
+        if (canvasEl) {
+          initInstanceRenderer(instance, canvasEl, el);
+          startInstanceDataLoop(instance);
+        }
+      }
     }
   }
 };
