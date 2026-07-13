@@ -105,6 +105,7 @@
         </div>
         <div class="instance-canvas-container">
           <canvas 
+            :key="instance.rendererKey || 'canvas'"
             :ref="(el) => setCanvasRef(instance.id, el)" 
             class="spectrum-canvas"
             @mousedown="(e) => onMouseDown(e, instance)"
@@ -632,6 +633,7 @@ const activeInstance = computed(() => {
 const createInstanceData = (id) => {
   return {
     id,
+    rendererKey: `canvas-${id}`,
     config: { ...defaultSpectrumConfig },
     isPlaying: true,
     isRecording: false,
@@ -1054,17 +1056,22 @@ const applySettings = (instance) => {
       instance.config.sweepMode = instance.rendererSettings.sweepMode;
       instance.config.gain = instance.rendererSettings.gain;
       instance.config.useWebGL = instance.rendererSettings.useWebGL;
-      if (needRecreateRenderer && instance.canvas) {
-        // 切换渲染模式，重新创建渲染器
+      if (needRecreateRenderer) {
+        // 切换渲染模式，需要创建新的 canvas 元素（因为一个 canvas 只能有一个 context）
         stopInstanceRenderLoop(instance);
+        stopInstanceDataLoop(instance);
         if (instance.renderer) {
           instance.renderer.dispose?.();
         }
-        initInstanceRenderer(instance, instance.canvas);
+        instance.renderer = null;
+        instance.canvas = null;
+        // 更新 rendererKey 强制 Vue 创建新的 canvas 元素
+        instance.rendererKey = `canvas-${instance.id}-${instance.config.useWebGL ? 'webgl' : 'canvas'}`;
+      } else {
+        // 重启数据循环以应用新的扫描时间
+        stopInstanceDataLoop(instance);
+        startInstanceDataLoop(instance);
       }
-      // 重启数据循环以应用新的扫描时间
-      stopInstanceDataLoop(instance);
-      startInstanceDataLoop(instance);
       break;
     }
   }
