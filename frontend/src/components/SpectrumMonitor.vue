@@ -114,6 +114,12 @@
             @mouseleave="(e) => onMouseLeave(e, instance)"
             @wheel.prevent="(e) => onWheel(e, instance)"
           ></canvas>
+          <canvas 
+            v-if="instance.config.useWebGL"
+            :key="(instance.rendererKey || 'canvas') + '-overlay'"
+            :ref="(el) => setOverlayCanvasRef(instance.id, el)" 
+            class="spectrum-canvas spectrum-overlay-canvas"
+          ></canvas>
           <div v-if="instance.hoverInfo" class="hover-info-box" 
             :style="{ left: instance.hoverPosition.x + 'px', top: instance.hoverPosition.y + 'px' }">
             <div class="info-row">
@@ -605,6 +611,7 @@ const activeInstanceId = ref(null);
 let instanceIdCounter = 0;
 
 const canvasRefs = {};
+const overlayCanvasRefs = {};
 const instancesContainer = ref(null);
 
 const getInstanceStyle = (instance, index) => {
@@ -699,10 +706,10 @@ const createInstanceData = (id) => {
   };
 };
 
-const initInstanceRenderer = (instance, canvas) => {
+const initInstanceRenderer = (instance, canvas, overlayCanvas) => {
   const rect = canvas?.getBoundingClientRect();
   if (!rect || rect.width === 0 || rect.height === 0) {
-    setTimeout(() => initInstanceRenderer(instance, canvas), 100);
+    setTimeout(() => initInstanceRenderer(instance, canvas, overlayCanvas), 100);
     return;
   }
   const waterfallHeight = instance.config.waterfallEnabled ? (rect.height * 0.5) : 0;
@@ -710,7 +717,8 @@ const initInstanceRenderer = (instance, canvas) => {
   
   try {
     instance.renderer = markRaw(new RendererClass(canvas, {
-      waterfallHeight
+      waterfallHeight,
+      overlayCanvas
     }));
   } catch (e) {
     if (instance.config.useWebGL && e.message?.includes('WebGL')) {
@@ -912,9 +920,20 @@ const setCanvasRef = (id, el) => {
     if (instance && !instance.renderer) {
       nextTick(() => {
         instance.canvas = el;
-        initInstanceRenderer(instance, el);
+        const overlayEl = overlayCanvasRefs[id];
+        initInstanceRenderer(instance, el, overlayEl);
         startInstanceDataLoop(instance);
       });
+    }
+  }
+};
+
+const setOverlayCanvasRef = (id, el) => {
+  if (el) {
+    overlayCanvasRefs[id] = el;
+    const instance = instances.value.find(i => i.id === id);
+    if (instance && instance.renderer && instance.config.useWebGL) {
+      instance.renderer.setOverlayCanvas(el);
     }
   }
 };
@@ -1370,6 +1389,13 @@ onUnmounted(() => {
   height: 100%;
   display: block;
   cursor: crosshair;
+}
+
+.spectrum-overlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
 }
 
 .hover-info-box {
