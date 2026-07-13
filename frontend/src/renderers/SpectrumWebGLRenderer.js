@@ -1,7 +1,7 @@
 export class SpectrumWebGLRenderer {
   constructor(canvas, options = {}) {
     this.canvas = canvas
-    this.gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+    this.gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true })
 
     if (!this.gl) {
       throw new Error('WebGL not supported')
@@ -141,12 +141,10 @@ export class SpectrumWebGLRenderer {
     const fsSource = `
       precision mediump float;
       uniform sampler2D u_texture;
-      uniform float u_minLevel;
-      uniform float u_maxLevel;
       varying vec2 v_texCoord;
 
-      vec3 getWaterfallColor(float value) {
-        float ratio = clamp((value - u_minLevel) / (u_maxLevel - u_minLevel), 0.0, 1.0);
+      vec3 getWaterfallColor(float ratio) {
+        ratio = clamp(ratio, 0.0, 1.0);
 
         if (ratio < 0.25) {
           float t = ratio / 0.25;
@@ -164,8 +162,8 @@ export class SpectrumWebGLRenderer {
       }
 
       void main() {
-        float value = texture2D(u_texture, v_texCoord).r;
-        vec3 color = getWaterfallColor(value);
+        float ratio = texture2D(u_texture, v_texCoord).r;
+        vec3 color = getWaterfallColor(ratio);
         gl_FragColor = vec4(color, 1.0);
       }
     `
@@ -275,6 +273,50 @@ export class SpectrumWebGLRenderer {
 
   clearWaterfall() {
     this.waterfallData = []
+  }
+
+  zoomAt(x, y, factorX, factorY) {
+    const plotX = x - this.plotArea.x
+    const plotY = y - this.plotArea.y
+
+    if (plotX < 0 || plotX > this.plotArea.width || plotY < 0 || plotY > this.plotArea.height) {
+      return
+    }
+
+    const xRatio = plotX / this.plotArea.width
+    const yRatio = plotY / this.plotArea.height
+
+    const freqAtMouse = this.centerFreq - this.span / 2 + this.span * xRatio
+    const levelAtMouse = this.maxLevel - (this.maxLevel - this.minLevel) * yRatio
+
+    const newZoomX = Math.max(0.1, Math.min(20, this.zoomX * factorX))
+    const newZoomY = Math.max(0.1, Math.min(20, this.zoomY * factorY))
+
+    const newSpan = this.baseSpan / newZoomX
+    const newLevelRange = (this.baseMaxLevel - this.baseMinLevel) / newZoomY
+
+    const newCenterFreq = freqAtMouse + (0.5 - xRatio) * newSpan
+    const newMaxLevel = levelAtMouse + yRatio * newLevelRange
+    const newMinLevel = newMaxLevel - newLevelRange
+
+    this.zoomX = newZoomX
+    this.zoomY = newZoomY
+    this.centerFreq = newCenterFreq
+    this.span = newSpan
+    this.minLevel = newMinLevel
+    this.maxLevel = newMaxLevel
+  }
+
+  resetZoom() {
+    this.zoomX = 1
+    this.zoomY = 1
+    this.panX = 0
+    this.panY = 0
+    this.centerFreq = this.baseCenterFreq
+    this.span = this.baseSpan
+    this.refLevel = this.baseRefLevel
+    this.minLevel = this.baseMinLevel
+    this.maxLevel = this.baseMaxLevel
   }
 
   calculateAreas() {
@@ -560,6 +602,11 @@ export class SpectrumWebGLRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)
 
+    const maxAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS)
+    for (let i = 0; i < maxAttribs; i++) {
+      gl.disableVertexAttribArray(i)
+    }
+
     gl.enableVertexAttribArray(positionLocation)
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
 
@@ -597,6 +644,12 @@ export class SpectrumWebGLRenderer {
     const buffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW)
+
+    // 禁用所有可能残留的属性数组，只启用需要的
+    const maxAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS)
+    for (let i = 0; i < maxAttribs; i++) {
+      gl.disableVertexAttribArray(i)
+    }
 
     gl.enableVertexAttribArray(positionLocation)
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
@@ -637,6 +690,11 @@ export class SpectrumWebGLRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW)
 
+    const maxAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS)
+    for (let i = 0; i < maxAttribs; i++) {
+      gl.disableVertexAttribArray(i)
+    }
+
     gl.enableVertexAttribArray(positionLocation)
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
 
@@ -675,6 +733,11 @@ export class SpectrumWebGLRenderer {
     const buffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW)
+
+    const maxAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS)
+    for (let i = 0; i < maxAttribs; i++) {
+      gl.disableVertexAttribArray(i)
+    }
 
     gl.enableVertexAttribArray(positionLocation)
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
@@ -715,6 +778,11 @@ export class SpectrumWebGLRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW)
 
+    const maxAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS)
+    for (let i = 0; i < maxAttribs; i++) {
+      gl.disableVertexAttribArray(i)
+    }
+
     gl.enableVertexAttribArray(positionLocation)
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
 
@@ -738,17 +806,22 @@ export class SpectrumWebGLRenderer {
     const lines = this.waterfallData.length
     const points = this.waterfallData[0]?.length || 1
 
-    const textureData = new Float32Array(lines * points)
+    // 将浮点值归一化到0-255范围，使用UNSIGNED_BYTE纹理（WebGL1兼容）
+    const textureData = new Uint8Array(lines * points)
+    const levelRange = this.maxLevel - this.minLevel
     for (let y = 0; y < lines; y++) {
       const line = this.waterfallData[y]
       for (let x = 0; x < points; x++) {
-        textureData[y * points + x] = line[x]
+        const value = line[x]
+        let normalized = (value - this.minLevel) / levelRange
+        normalized = Math.max(0, Math.min(1, normalized))
+        textureData[y * points + x] = Math.floor(normalized * 255)
       }
     }
 
     const texture = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, points, lines, 0, gl.LUMINANCE, gl.FLOAT, textureData)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, points, lines, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, textureData)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
@@ -771,14 +844,17 @@ export class SpectrumWebGLRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
 
+    const maxAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS)
+    for (let i = 0; i < maxAttribs; i++) {
+      gl.disableVertexAttribArray(i)
+    }
+
     gl.enableVertexAttribArray(positionLocation)
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 16, 0)
     gl.enableVertexAttribArray(texCoordLocation)
     gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 16, 8)
 
     gl.uniform1i(gl.getUniformLocation(program, 'u_texture'), 0)
-    gl.uniform1f(gl.getUniformLocation(program, 'u_minLevel'), this.minLevel)
-    gl.uniform1f(gl.getUniformLocation(program, 'u_maxLevel'), this.maxLevel)
 
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, texture)
