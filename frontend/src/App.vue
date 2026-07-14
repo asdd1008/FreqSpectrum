@@ -1,14 +1,14 @@
 <template>
   <div class="app-container">
     <el-tabs v-model="activeTab" class="main-tabs">
-      <el-tab-pane label="频谱监测" name="spectrum">
+      <el-tab-pane label="实时频谱" name="realtime-spectrum">
         <SpectrumMonitor />
+      </el-tab-pane>
+      <el-tab-pane label="历史频谱" name="history-spectrum">
+        <HistorySpectrum />
       </el-tab-pane>
       <el-tab-pane label="电平监测" name="level">
         <LevelMonitor />
-      </el-tab-pane>
-      <el-tab-pane label="新频谱组件" name="new-spectrum">
-        <SpectrumTest />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -17,10 +17,10 @@
 <script setup>
 import { ref } from 'vue'
 import SpectrumMonitor from './components/SpectrumMonitor.vue'
+import HistorySpectrum from './components/HistorySpectrum.vue'
 import LevelMonitor from './components/LevelMonitor.vue'
-import SpectrumTest from './components/SpectrumTest.vue'
 
-const activeTab = ref('spectrum')
+const activeTab = ref('realtime-spectrum')
 </script>
 
 <style scoped>

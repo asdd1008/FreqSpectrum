@@ -69,6 +69,10 @@ export default defineConfig(async () => {
           target: `ws://localhost:${backendPort}`,
           ws: true,
           changeOrigin: true
+        },
+        '/api': {
+          target: `http://localhost:${backendPort}`,
+          changeOrigin: true
         }
       }
     }
