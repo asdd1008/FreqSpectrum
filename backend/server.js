@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws'
 import http from 'http'
 import url from 'url'
+import zlib from 'zlib'
 import SpectrumDataGenerator from './dataGenerator.js'
 import { findAvailablePort, savePortConfig } from './utils/portUtils.js'
 
@@ -131,7 +132,7 @@ function createPNG(width, height, rgbaData) {
     const lenBuf = Buffer.alloc(4)
     lenBuf.writeUInt32BE(data.length, 0)
     const crcBuf = Buffer.alloc(4)
-    crcBuf.writeUInt32BE(crc32(chunk), 0)
+    crcBuf.writeUInt32BE(crc32(chunk) >>> 0, 0)
     return Buffer.concat([lenBuf, chunk, crcBuf])
   }
 
@@ -162,7 +163,6 @@ function createPNG(width, height, rgbaData) {
   }
 
   // 使用 Node.js zlib 压缩
-  const zlib = await import('zlib')
   const compressed = zlib.deflateSync(rawData)
 
   // 组装 PNG

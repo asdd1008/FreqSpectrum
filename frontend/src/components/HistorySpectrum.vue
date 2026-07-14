@@ -208,8 +208,10 @@ function unbindEvents() {
 function drawBaseFrame() {
   if (!spectrumCtx) return
   const canvas = spectrumCanvasRef.value
-  const width = canvas.width / (window.devicePixelRatio || 1)
-  const height = canvas.height / (window.devicePixelRatio || 1)
+  const width = Math.floor(canvas.width / (window.devicePixelRatio || 1))
+  const height = Math.floor(canvas.height / (window.devicePixelRatio || 1))
+
+  if (width <= 0 || height <= 0) return
 
   // 清空
   spectrumCtx.clearRect(0, 0, width, height)
@@ -482,8 +484,10 @@ function drawTiles() {
 function drawWaterfall() {
   if (!waterfallCtx) return
   const canvas = waterfallCanvasRef.value
-  const width = canvas.width / (window.devicePixelRatio || 1)
-  const height = canvas.height / (window.devicePixelRatio || 1)
+  const width = Math.floor(canvas.width / (window.devicePixelRatio || 1))
+  const height = Math.floor(canvas.height / (window.devicePixelRatio || 1))
+
+  if (width <= 0 || height <= 0) return
 
   waterfallCtx.clearRect(0, 0, width, height)
   waterfallCtx.fillStyle = '#0a1628'
