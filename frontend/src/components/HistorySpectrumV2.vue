@@ -67,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 
 // ==================== 常量定义 ====================
 const TILE_SIZE = 120
@@ -827,11 +827,46 @@ onMounted(async () => {
     sessionId = 'mock-session-' + Date.now()
   }
 
-  // 等待 DOM 完全渲染后再初始化画布
-  setTimeout(() => {
-    resizeCanvas()
-    window.addEventListener('resize', resizeCanvas)
-  }, 100)
+  const tryInitialize = () => {
+    const spectrumArea = spectrumAreaRef.value
+    const waterfallArea = waterfallAreaRef.value
+    
+    if (spectrumArea && waterfallArea && 
+        spectrumArea.clientWidth > 0 && waterfallArea.clientHeight > 0) {
+      resizeCanvas()
+      return true
+    }
+    return false
+  }
+
+  if (!tryInitialize()) {
+    const observer = new MutationObserver(() => {
+      if (tryInitialize()) {
+        observer.disconnect()
+      }
+    })
+    
+    const container = spectrumAreaRef.value?.parentElement || document.body
+    observer.observe(container, { 
+      attributes: true, 
+      childList: true, 
+      subtree: true 
+    })
+    
+    const interval = setInterval(() => {
+      if (tryInitialize()) {
+        clearInterval(interval)
+        observer.disconnect()
+      }
+    }, 100)
+    
+    onUnmounted(() => {
+      clearInterval(interval)
+      observer.disconnect()
+    })
+  }
+  
+  window.addEventListener('resize', resizeCanvas)
 })
 
 onUnmounted(() => {
