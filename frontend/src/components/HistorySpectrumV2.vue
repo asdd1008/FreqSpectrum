@@ -257,20 +257,56 @@ class LRUCache {
 }
 
 const tileCache = new LRUCache(MAX_CACHE_SIZE)
-const loadingTiles = new Set()
+const loadingTiles = new Map()
+const pendingTiles = []
+let tileLoadFrame = null
 
 // ==================== 瓦片加载 ====================
 function getTileKey(level, x, y) {
   return `${sessionId}_${level}_${x}_${y}`
 }
 
-async function loadTile(level, x, y) {
+function enqueueTileLoad(level, x, y, priority = 0) {
   const key = getTileKey(level, x, y)
-  const cached = tileCache.get(key)
-  if (cached) return cached
-  if (loadingTiles.has(key)) return null
+  if (tileCache.get(key) || loadingTiles.has(key)) return
 
-  loadingTiles.add(key)
+  const existing = pendingTiles.find(t => t.key === key)
+  if (existing) {
+    existing.priority = Math.max(existing.priority, priority)
+    return
+  }
+
+  pendingTiles.push({ level, x, y, key, priority })
+  pendingTiles.sort((a, b) => b.priority - a.priority)
+
+  if (!tileLoadFrame) {
+    tileLoadFrame = requestAnimationFrame(processTileQueue)
+  }
+}
+
+async function processTileQueue() {
+  tileLoadFrame = null
+  if (pendingTiles.length === 0) return
+
+  // 批量处理最多6个瓦片，避免阻塞主线程
+  const batch = pendingTiles.splice(0, 6)
+  const results = await Promise.allSettled(batch.map(t => loadTileInternal(t.level, t.x, t.y)))
+
+  // 只要还有未完成的，继续处理
+  if (pendingTiles.length > 0) {
+    tileLoadFrame = requestAnimationFrame(processTileQueue)
+  }
+
+  // 如果有瓦片加载完成，重新渲染
+  const hasLoaded = results.some(r => r.status === 'fulfilled' && r.value)
+  if (hasLoaded) {
+    scheduleWaterfallRender()
+  }
+}
+
+async function loadTileInternal(level, x, y) {
+  const key = getTileKey(level, x, y)
+  loadingTiles.set(key, true)
   try {
     const url = `/api/history/tile?level=${level}&x=${x}&y=${y}&sessionId=${sessionId}&type=waterfall`
     const image = await new Promise((resolve, reject) => {
@@ -287,6 +323,13 @@ async function loadTile(level, x, y) {
     loadingTiles.delete(key)
     return null
   }
+}
+
+async function loadTile(level, x, y) {
+  const key = getTileKey(level, x, y)
+  const cached = tileCache.get(key)
+  if (cached) return cached
+  return null
 }
 
 // ==================== 频谱图绘制 ====================
@@ -692,18 +735,44 @@ async function renderWaterfall() {
 
   const tiles = getVisibleTiles()
 
-  for (const tile of tiles) {
+  // 计算中心点，用于优先级排序
+  const centerX = paddingLeft + plotWidth / 2
+  const centerY = paddingTop + plotHeight / 2
+
+  // 先排序：中心区域优先
+  const sortedTiles = [...tiles].sort((a, b) => {
+    const ax = (a.x * TILE_SIZE - waterfallViewport.value.x) * waterfallViewport.value.scale + paddingLeft
+    const ay = (a.y * TILE_SIZE - waterfallViewport.value.y) * waterfallViewport.value.scale + paddingTop
+    const bx = (b.x * TILE_SIZE - waterfallViewport.value.x) * waterfallViewport.value.scale + paddingLeft
+    const by = (b.y * TILE_SIZE - waterfallViewport.value.y) * waterfallViewport.value.scale + paddingTop
+    const da = Math.hypot(ax - centerX, ay - centerY)
+    const db = Math.hypot(bx - centerX, by - centerY)
+    return da - db
+  })
+
+  const loadingQueue = []
+
+  for (const tile of sortedTiles) {
     const img = await loadTile(tile.level, tile.x, tile.y)
+    const screenPos = worldToPixel(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
+    const drawSize = TILE_SIZE * waterfallViewport.value.scale
+    const sx = screenPos.x + paddingLeft
+    const sy = screenPos.y + paddingTop
+
     if (img) {
-      const screenPos = worldToPixel(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
-      const drawSize = TILE_SIZE * waterfallViewport.value.scale
-      ctx.drawImage(img, screenPos.x + paddingLeft, screenPos.y + paddingTop, drawSize, drawSize)
+      ctx.drawImage(img, sx, sy, drawSize, drawSize)
     } else {
-      const screenPos = worldToPixel(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
-      const drawSize = TILE_SIZE * waterfallViewport.value.scale
-      ctx.fillStyle = 'rgba(20, 30, 50, 0.5)'
-      ctx.fillRect(screenPos.x + paddingLeft, screenPos.y + paddingTop, drawSize, drawSize)
+      // 绘制低分辨率占位或半透明背景
+      drawTilePlaceholder(ctx, sx, sy, drawSize, tile)
+      // 加入加载队列
+      const dist = Math.hypot(sx + drawSize / 2 - centerX, sy + drawSize / 2 - centerY)
+      loadingQueue.push({ ...tile, priority: 1000 - dist })
     }
+  }
+
+  // 提交瓦片加载请求
+  for (const item of loadingQueue) {
+    enqueueTileLoad(item.level, item.x, item.y, item.priority)
   }
 
   const gridSpacing = TILE_SIZE * waterfallViewport.value.scale
@@ -812,6 +881,22 @@ function scheduleWaterfallRender() {
   requestAnimationFrame(() => {
     renderWaterfall()
   })
+}
+
+function drawTilePlaceholder(ctx, x, y, size, tile) {
+  // 根据瓦片坐标生成稳定的伪随机颜色，避免闪烁
+  const seed = tile.x * 73856093 + tile.y * 19349663 + tile.level * 83492791
+  const rnd = ((seed * 9301 + 49297) % 233280) / 233280
+
+  const hue = 220 + rnd * 20
+  const lightness = 5 + rnd * 8
+  ctx.fillStyle = `hsl(${hue}, 40%, ${lightness}%)`
+  ctx.fillRect(x, y, size, size)
+
+  // 加载中指示
+  ctx.strokeStyle = 'rgba(100, 130, 160, 0.15)'
+  ctx.lineWidth = 1
+  ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1)
 }
 
 // ==================== 瀑布图交互 ====================
@@ -928,6 +1013,9 @@ function onWaterfallMouseUp() {
   if (canvas) canvas.style.cursor = 'crosshair'
 }
 
+let wheelTimeout = null
+let accumulatedDelta = 0
+
 function onWaterfallWheel(e) {
   e.preventDefault()
 
@@ -938,24 +1026,52 @@ function onWaterfallWheel(e) {
 
   const paddingLeft = 60
   const paddingTop = 8
+  const paddingRight = 55
+  const paddingBottom = 30
 
+  if (px < paddingLeft || px > rect.width - paddingRight ||
+      py < paddingTop || py > rect.height - paddingBottom) return
+
+  accumulatedDelta += e.deltaY
+
+  const zoomFactor = e.deltaY < 0 ? 0.85 : 1.15
   const worldPosBefore = pixelToWorld(px, py)
-  const zoomFactor = e.deltaY < 0 ? 1.2 : 0.8
-  const newScale = waterfallViewport.value.scale * zoomFactor
 
-  const targetLevel = Math.max(MIN_LEVEL, Math.min(MAX_LEVEL, Math.round(Math.log2(newScale) + 2)))
+  const newScale = Math.max(
+    getMinScale(),
+    Math.min(10, waterfallViewport.value.scale / zoomFactor)
+  )
 
-  if (targetLevel !== currentLevel.value) {
-    changeLevel(targetLevel, worldPosBefore, px - paddingLeft, py - paddingTop)
-  } else {
-    waterfallViewport.value.scale = newScale
-    const worldPosAfter = pixelToWorld(px, py)
-    waterfallViewport.value.x += worldPosBefore.x - worldPosAfter.x
-    waterfallViewport.value.y += worldPosBefore.y - worldPosAfter.y
+  waterfallViewport.value.scale = newScale
+  const worldPosAfter = pixelToWorld(px, py)
+  waterfallViewport.value.x += worldPosBefore.x - worldPosAfter.x
+  waterfallViewport.value.y += worldPosBefore.y - worldPosAfter.y
 
-    clampWaterfallViewport()
-    scheduleWaterfallRender()
-  }
+  clampWaterfallViewport()
+  scheduleWaterfallRender()
+
+  // 缩放停止后，延迟切换到合适的瓦片层级
+  if (wheelTimeout) clearTimeout(wheelTimeout)
+  wheelTimeout = setTimeout(() => {
+    const optimalLevel = getOptimalLevel()
+    if (optimalLevel !== currentLevel.value) {
+      smoothChangeLevel(optimalLevel)
+    }
+    accumulatedDelta = 0
+  }, 150)
+}
+
+function getMinScale() {
+  const effectiveWidth = Math.max(100, waterfallViewport.value.width - 60 - 55)
+  const effectiveHeight = Math.max(100, waterfallViewport.value.height - 8 - 30)
+  return Math.min(effectiveWidth / worldWidth, effectiveHeight / worldHeight)
+}
+
+function getOptimalLevel() {
+  const tilesNeededX = Math.ceil((waterfallViewport.value.width - 60 - 55) / TILE_SIZE / waterfallViewport.value.scale)
+  const idealTiles = Math.min(tilesNeededX, Math.pow(2, MAX_LEVEL + 1))
+  const level = Math.max(MIN_LEVEL, Math.min(MAX_LEVEL, Math.ceil(Math.log2(idealTiles)) - 1))
+  return level
 }
 
 function applyWaterfallBoxSelection() {
@@ -988,22 +1104,39 @@ function cancelWaterfallBoxSelection() {
   waterfallBoxSelectionPersist.value = false
 }
 
-function changeLevel(newLevel, worldPos, px, py) {
+function smoothChangeLevel(newLevel) {
   const oldLevel = currentLevel.value
+  if (newLevel === oldLevel) return
+
+  const canvas = waterfallCanvasRef.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const paddingLeft = 60
+  const paddingTop = 8
+
+  // 以视图中心为缩放中心
+  const centerX = paddingLeft + (rect.width - 60 - 55) / 2
+  const centerY = paddingTop + (rect.height - 8 - 30) / 2
+  const centerWorld = pixelToWorld(centerX, centerY)
+
   currentLevel.value = newLevel
 
   const worldSize = getWorldSize(newLevel)
   worldWidth = worldSize.width
   worldHeight = worldSize.height
 
+  // 保持当前显示范围尽可能一致
   const oldWorldSize = getWorldSize(oldLevel)
   const scaleRatio = oldWorldSize.width / worldSize.width
   waterfallViewport.value.scale = waterfallViewport.value.scale * scaleRatio
 
-  waterfallViewport.value.x = worldPos.x - px / waterfallViewport.value.scale
-  waterfallViewport.value.y = worldPos.y - py / waterfallViewport.value.scale
+  waterfallViewport.value.x = centerWorld.x - (centerX - paddingLeft) / waterfallViewport.value.scale
+  waterfallViewport.value.y = centerWorld.y - (centerY - paddingTop) / waterfallViewport.value.scale
 
   clampWaterfallViewport()
+  clearTileQueue()
+  tileCache.clear()
   scheduleWaterfallRender()
 }
 
@@ -1078,6 +1211,7 @@ function handleQuery() {
   const effectiveWidth = Math.max(100, waterfallViewport.value.width - 60 - 55)
   waterfallViewport.value.scale = effectiveWidth / Math.max(1, viewWidth)
 
+  clearTileQueue()
   tileCache.clear()
   drawSpectrum()
   scheduleWaterfallRender()
@@ -1113,34 +1247,29 @@ function resetView() {
     minLevel: -100
   }
 
+  clearTileQueue()
   tileCache.clear()
   drawSpectrum()
   scheduleWaterfallRender()
 }
 
+function clearTileQueue() {
+  pendingTiles.length = 0
+  if (tileLoadFrame) {
+    cancelAnimationFrame(tileLoadFrame)
+    tileLoadFrame = null
+  }
+}
+
 function zoomIn() {
   if (currentLevel.value < MAX_LEVEL) {
-    const canvas = waterfallCanvasRef.value
-    const rect = canvas.getBoundingClientRect()
-    const paddingLeft = 60
-    const paddingTop = 8
-    const centerX = rect.width / 2
-    const centerY = rect.height / 2
-    const worldPos = pixelToWorld(centerX, centerY)
-    changeLevel(currentLevel.value + 1, worldPos, centerX - paddingLeft, centerY - paddingTop)
+    smoothChangeLevel(currentLevel.value + 1)
   }
 }
 
 function zoomOut() {
   if (currentLevel.value > MIN_LEVEL) {
-    const canvas = waterfallCanvasRef.value
-    const rect = canvas.getBoundingClientRect()
-    const paddingLeft = 60
-    const paddingTop = 8
-    const centerX = rect.width / 2
-    const centerY = rect.height / 2
-    const worldPos = pixelToWorld(centerX, centerY)
-    changeLevel(currentLevel.value - 1, worldPos, centerX - paddingLeft, centerY - paddingTop)
+    smoothChangeLevel(currentLevel.value - 1)
   }
 }
 
