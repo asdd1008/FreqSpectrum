@@ -238,23 +238,38 @@ const handleHttpRequest = async (req, res) => {
 
   // 获取图片瓦片
   if (pathname === '/api/history/tile' && method === 'GET') {
-    const { level, x, y, freqStart, freqEnd, timeStart, timeEnd, sessionId } = parsedUrl.query
+    const { level, x, y, sessionId, type } = parsedUrl.query
 
     try {
-      const fStart = parseFloat(freqStart)
-      const fEnd = parseFloat(freqEnd)
-      const tStart = parseFloat(timeStart)
-      const tEnd = parseFloat(timeEnd)
+      const tileLevel = parseInt(level)
+      const tileX = parseInt(x)
+      const tileY = parseInt(y)
 
-      // 生成瓦片缓存键
+      const WORLD_FREQ_START = 900e6
+      const WORLD_FREQ_END = 1100e6
+      const WORLD_TIME_START = Date.now() - 3600 * 1000
+      const WORLD_TIME_END = Date.now()
+
+      const tilesPerSide = Math.pow(2, tileLevel + 1)
+      const freqRange = WORLD_FREQ_END - WORLD_FREQ_START
+      const timeRange = WORLD_TIME_END - WORLD_TIME_START
+
+      const tileFreqWidth = freqRange / tilesPerSide
+      const tileTimeHeight = timeRange / tilesPerSide
+
+      const fStart = WORLD_FREQ_START + tileX * tileFreqWidth
+      const fEnd = WORLD_FREQ_START + (tileX + 1) * tileFreqWidth
+      const tStart = WORLD_TIME_START + tileY * tileTimeHeight
+      const tEnd = WORLD_TIME_START + (tileY + 1) * tileTimeHeight
+
       const tileKey = `${sessionId}_${level}_${x}_${y}`
 
       let pngBuffer
       if (historyStore.tiles.has(tileKey)) {
         pngBuffer = historyStore.tiles.get(tileKey)
       } else {
-        const rgbaData = generateTileImage(fStart, fEnd, tStart, tEnd)
-        pngBuffer = await createPNG(256, 256, rgbaData)
+        const rgbaData = generateTileImage(fStart, fEnd, tStart, tEnd, 120, 120)
+        pngBuffer = await createPNG(120, 120, rgbaData)
         historyStore.tiles.set(tileKey, pngBuffer)
       }
 
