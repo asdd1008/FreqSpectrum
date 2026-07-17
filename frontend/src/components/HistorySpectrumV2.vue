@@ -1,5 +1,5 @@
 <template>
-  <div class="history-spectrum-v2-container">
+  <div class="history-spectrum-v2-container" ref="containerRef">
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
@@ -24,23 +24,23 @@
         @mousedown="onSpectrumMouseDown"
         @mousemove="onSpectrumMouseMove"
         @mouseup="onSpectrumMouseUp"
-        @mouseleave="onSpectrumMouseUp"
+        @mouseleave="onSpectrumMouseLeave"
         @wheel="onSpectrumWheel"
       ></canvas>
-      <div v-if="tooltip.visible" class="tooltip" :style="tooltipStyle">
+      <div v-if="tooltip.visible && !isSpectrumBoxSelecting" class="tooltip" :style="tooltipStyle">
         <div>频率: {{ formatFreq(tooltip.freq) }}</div>
         <div>功率: {{ tooltip.level?.toFixed(1) ?? '--' }} dBm</div>
       </div>
       <!-- 框选框 -->
-      <div v-if="isBoxSelecting" class="box-selection" :style="boxSelectionStyle"></div>
+      <div v-if="isSpectrumBoxSelecting || spectrumBoxSelectionPersist" class="box-selection" :style="spectrumBoxSelectionStyle"></div>
       <!-- 框选信息 -->
-      <div v-if="boxSelectionInfo.visible" class="box-selection-info">
-        <div>频率范围: {{ formatFreq(boxSelectionInfo.freqStart) }} - {{ formatFreq(boxSelectionInfo.freqEnd) }}</div>
-        <div>中心频率: {{ formatFreq(boxSelectionInfo.centerFreq) }}</div>
-        <div>带宽: {{ formatFreq(boxSelectionInfo.bandwidth) }}</div>
+      <div v-if="spectrumBoxSelectionInfo.visible" class="box-selection-info">
+        <div>频率范围: {{ formatFreq(spectrumBoxSelectionInfo.freqStart) }} - {{ formatFreq(spectrumBoxSelectionInfo.freqEnd) }}</div>
+        <div>中心频率: {{ formatFreq(spectrumBoxSelectionInfo.centerFreq) }}</div>
+        <div>带宽: {{ formatFreq(spectrumBoxSelectionInfo.bandwidth) }}</div>
         <div class="info-actions">
-          <el-button size="small" type="primary" @click="applyBoxSelection">应用</el-button>
-          <el-button size="small" @click="cancelBoxSelection">取消</el-button>
+          <el-button size="small" type="primary" @click="applySpectrumBoxSelection">应用</el-button>
+          <el-button size="small" @click="cancelSpectrumBoxSelection">取消</el-button>
         </div>
       </div>
     </div>
@@ -56,18 +56,35 @@
         @mouseleave="onWaterfallMouseUp"
         @wheel="onWaterfallWheel"
       ></canvas>
-      <!-- 时间轴 -->
-      <div class="time-axis">
-        <span v-for="(label, idx) in timeAxisLabels" :key="idx" :style="{ left: idx * 100 / timeAxisLabels.length + '%' }">
-          {{ label }}
-        </span>
+      <!-- 框选框 -->
+      <div v-if="isWaterfallBoxSelecting || waterfallBoxSelectionPersist" class="waterfall-box-selection" :style="waterfallBoxSelectionStyle"></div>
+      <!-- 框选信息 -->
+      <div v-if="waterfallBoxSelectionInfo.visible" class="box-selection-info waterfall-selection-info">
+        <div>频率范围: {{ formatFreq(waterfallBoxSelectionInfo.freqStart) }} - {{ formatFreq(waterfallBoxSelectionInfo.freqEnd) }}</div>
+        <div>时间范围: {{ formatTime(waterfallBoxSelectionInfo.timeStart) }} - {{ formatTime(waterfallBoxSelectionInfo.timeEnd) }}</div>
+        <div class="info-actions">
+          <el-button size="small" type="primary" @click="applyWaterfallBoxSelection">应用</el-button>
+          <el-button size="small" @click="cancelWaterfallBoxSelection">取消</el-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧颜色柱 -->
+    <div class="color-bar" ref="colorBarRef">
+      <canvas ref="colorBarCanvasRef" class="color-bar-canvas"></canvas>
+      <div class="color-bar-labels">
+        <span>0 dBm</span>
+        <span>-25 dBm</span>
+        <span>-50 dBm</span>
+        <span>-75 dBm</span>
+        <span>-100 dBm</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 
 // ==================== 常量定义 ====================
 const TILE_SIZE = 120
@@ -89,39 +106,49 @@ const WORLD_SIGNALS = [
 ]
 
 // ==================== DOM 引用 ====================
+const containerRef = ref(null)
 const spectrumAreaRef = ref(null)
 const spectrumCanvasRef = ref(null)
 const waterfallAreaRef = ref(null)
 const waterfallCanvasRef = ref(null)
+const colorBarRef = ref(null)
+const colorBarCanvasRef = ref(null)
 
 // ==================== 状态 ====================
 const currentLevel = ref(0)
 const hoverInfo = ref({ visible: false, freq: 0, level: null })
 const tooltip = ref({ visible: false, x: 0, y: 0, freq: 0, level: null })
-const isBoxSelecting = ref(false)
-const boxSelection = ref({ startX: 0, startY: 0, endX: 0, endY: 0 })
-const boxSelectionInfo = ref({ visible: false, freqStart: 0, freqEnd: 0, centerFreq: 0, bandwidth: 0 })
+
+// 频谱图框选状态
+const isSpectrumBoxSelecting = ref(false)
+const spectrumBoxSelectionPersist = ref(false)
+const spectrumBoxSelection = ref({ startX: 0, endX: 0 })
+const spectrumBoxSelectionInfo = ref({ visible: false, freqStart: 0, freqEnd: 0, centerFreq: 0, bandwidth: 0 })
+
+// 瀑布图框选状态
+const isWaterfallBoxSelecting = ref(false)
+const waterfallBoxSelectionPersist = ref(false)
+const waterfallBoxSelection = ref({ startX: 0, startY: 0, endX: 0, endY: 0 })
+const waterfallBoxSelectionInfo = ref({ visible: false, freqStart: 0, freqEnd: 0, timeStart: 0, timeEnd: 0 })
 
 const tooltipStyle = computed(() => ({
   left: tooltip.value.x + 15 + 'px',
   top: tooltip.value.y + 15 + 'px'
 }))
 
-const boxSelectionStyle = computed(() => ({
-  left: Math.min(boxSelection.value.startX, boxSelection.value.endX) + 'px',
+const spectrumBoxSelectionStyle = computed(() => ({
+  left: Math.min(spectrumBoxSelection.value.startX, spectrumBoxSelection.value.endX) + 'px',
   top: 0,
-  width: Math.abs(boxSelection.value.endX - boxSelection.value.startX) + 'px',
+  width: Math.abs(spectrumBoxSelection.value.endX - spectrumBoxSelection.value.startX) + 'px',
   height: '100%'
 }))
 
-const timeAxisLabels = computed(() => {
-  const labels = []
-  for (let i = 0; i <= 10; i++) {
-    const time = WORLD_TIME_START + (WORLD_TIME_END - WORLD_TIME_START) * (i / 10)
-    labels.push(new Date(time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }))
-  }
-  return labels
-})
+const waterfallBoxSelectionStyle = computed(() => ({
+  left: Math.min(waterfallBoxSelection.value.startX, waterfallBoxSelection.value.endX) + 'px',
+  top: Math.min(waterfallBoxSelection.value.startY, waterfallBoxSelection.value.endY) + 'px',
+  width: Math.abs(waterfallBoxSelection.value.endX - waterfallBoxSelection.value.startX) + 'px',
+  height: Math.abs(waterfallBoxSelection.value.endY - waterfallBoxSelection.value.startY) + 'px'
+}))
 
 // 频谱图视口
 const spectrumViewport = ref({
@@ -226,9 +253,9 @@ function generateSpectrumData(points = 512) {
     let value = -85 + (Math.random() - 0.5) * 6
 
     for (const signal of WORLD_SIGNALS) {
-      if (Math.abs(freq - signal.freq) < signal.bandwidth) {
-        const distance = Math.abs(freq - signal.freq) / signal.bandwidth
-        const attenuation = Math.exp(-distance * distance * 2)
+      if (freq >= signal.freq - signal.bandwidth / 2 && freq <= signal.freq + signal.bandwidth / 2) {
+        const centerDistance = Math.abs(freq - signal.freq) / (signal.bandwidth / 2)
+        const attenuation = Math.exp(-centerDistance * centerDistance * 2)
 
         let signalLevel = signal.level
         if (signal.type === 'pulsed') {
@@ -259,18 +286,22 @@ function drawSpectrum() {
   const width = Math.floor(canvas.width / dpr)
   const height = Math.floor(canvas.height / dpr)
 
+  if (width <= 0 || height <= 0) return
+
+  ctx.save()
+  ctx.scale(dpr, dpr)
   ctx.clearRect(0, 0, width, height)
 
   ctx.fillStyle = '#0a1628'
   ctx.fillRect(0, 0, width, height)
 
-  drawSpectrumGrid(ctx, width, height)
-  drawSpectrumAxes(ctx, width, height)
-
-  const plotWidth = width - 60
-  const plotHeight = height - 30
+  const plotWidth = width - 70
+  const plotHeight = height - 40
   const plotX = 60
-  const plotY = 0
+  const plotY = 10
+
+  drawSpectrumGrid(ctx, plotX, plotY, plotWidth, plotHeight)
+  drawSpectrumAxes(ctx, plotX, plotY, plotWidth, plotHeight, width, height)
 
   const spectrumData = generateSpectrumData(plotWidth)
 
@@ -317,64 +348,68 @@ function drawSpectrum() {
   ctx.fill()
 
   ctx.restore()
+  ctx.restore()
 }
 
-function drawSpectrumGrid(ctx, width, height) {
+function drawSpectrumGrid(ctx, plotX, plotY, plotWidth, plotHeight) {
   ctx.strokeStyle = '#1a3a5c'
   ctx.lineWidth = 0.5
 
-  const plotWidth = width - 60
-  const plotHeight = height - 30
-
   for (let i = 0; i <= 10; i++) {
-    const x = 60 + (plotWidth / 10) * i
+    const x = plotX + (plotWidth / 10) * i
     ctx.beginPath()
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, plotHeight)
+    ctx.moveTo(x, plotY)
+    ctx.lineTo(x, plotY + plotHeight)
     ctx.stroke()
   }
 
   for (let i = 0; i <= 8; i++) {
-    const y = (plotHeight / 8) * i
+    const y = plotY + (plotHeight / 8) * i
     ctx.beginPath()
-    ctx.moveTo(60, y)
-    ctx.lineTo(width, y)
+    ctx.moveTo(plotX, y)
+    ctx.lineTo(plotX + plotWidth, y)
     ctx.stroke()
   }
 }
 
-function drawSpectrumAxes(ctx, width, height) {
+function drawSpectrumAxes(ctx, plotX, plotY, plotWidth, plotHeight, width, height) {
   ctx.strokeStyle = '#3a6b9c'
-  ctx.lineWidth = 1.5
-  ctx.fillStyle = '#e0e0e0'
-  ctx.font = '12px monospace'
+  ctx.lineWidth = 1
+  ctx.fillStyle = '#8ab4c7'
+  ctx.font = '11px monospace'
 
-  const plotWidth = width - 60
-  const plotHeight = height - 30
-
+  // X轴
   ctx.beginPath()
-  ctx.moveTo(60, plotHeight)
-  ctx.lineTo(width, plotHeight)
+  ctx.moveTo(plotX, plotY + plotHeight)
+  ctx.lineTo(plotX + plotWidth, plotY + plotHeight)
   ctx.stroke()
 
   ctx.textAlign = 'center'
   for (let i = 0; i <= 10; i++) {
-    const x = 60 + (plotWidth / 10) * i
+    const x = plotX + (plotWidth / 10) * i
     const freq = spectrumViewport.value.freqStart + (spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart) * (i / 10)
-    ctx.fillText((freq / 1e6).toFixed(0) + 'M', x, height - 8)
+    ctx.fillText((freq / 1e6).toFixed(0), x, plotY + plotHeight + 15)
   }
+  ctx.fillText('频率 (MHz)', plotX + plotWidth / 2, plotY + plotHeight + 30)
 
+  // Y轴
   ctx.beginPath()
-  ctx.moveTo(60, 0)
-  ctx.lineTo(60, plotHeight)
+  ctx.moveTo(plotX, plotY)
+  ctx.lineTo(plotX, plotY + plotHeight)
   ctx.stroke()
 
   ctx.textAlign = 'right'
   for (let i = 0; i <= 8; i++) {
-    const y = (plotHeight / 8) * i
-    const level = spectrumViewport.value.refLevel - i * 12.5
-    ctx.fillText(level.toFixed(0) + 'dBm', 55, y + 4)
+    const y = plotY + (plotHeight / 8) * i
+    const level = spectrumViewport.value.refLevel - i * (spectrumViewport.value.refLevel - spectrumViewport.value.minLevel) / 8
+    ctx.fillText(level.toFixed(0), plotX - 5, y + 4)
   }
+  ctx.save()
+  ctx.translate(15, plotY + plotHeight / 2)
+  ctx.rotate(-Math.PI / 2)
+  ctx.textAlign = 'center'
+  ctx.fillText('功率 (dBm)', 0, 0)
+  ctx.restore()
 }
 
 // ==================== 频谱图交互 ====================
@@ -386,48 +421,63 @@ function onSpectrumMouseDown(e) {
   const rect = canvas.getBoundingClientRect()
   const x = e.clientX - rect.left
 
-  isBoxSelecting.value = true
-  boxSelection.value = { startX: x, startY: 0, endX: x, endY: 0 }
+  isSpectrumBoxSelecting.value = true
+  spectrumBoxSelectionPersist.value = false
+  spectrumBoxSelectionInfo.value.visible = false
+  spectrumBoxSelection.value = { startX: x, endX: x }
 }
 
 function onSpectrumMouseMove(e) {
   const canvas = spectrumCanvasRef.value
   const rect = canvas.getBoundingClientRect()
   const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
 
   const plotX = 60
-  const plotWidth = rect.width - 60
+  const plotWidth = rect.width - 70
   const freqRange = spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart
   const freq = spectrumViewport.value.freqStart + (Math.max(0, Math.min(plotWidth, x - plotX)) / plotWidth) * freqRange
 
   hoverInfo.value = { visible: true, freq, level: null }
-  tooltip.value = { visible: true, x, y: e.clientY - rect.top, freq, level: null }
+  tooltip.value = { visible: true, x, y, freq, level: null }
 
-  if (isBoxSelecting.value) {
-    boxSelection.value.endX = x
-
-    const minX = Math.min(boxSelection.value.startX, boxSelection.value.endX)
-    const maxX = Math.max(boxSelection.value.startX, boxSelection.value.endX)
-    const startFreq = spectrumViewport.value.freqStart + (Math.max(0, minX - plotX) / plotWidth) * freqRange
-    const endFreq = spectrumViewport.value.freqStart + (Math.max(0, maxX - plotX) / plotWidth) * freqRange
-
-    boxSelectionInfo.value = {
-      visible: true,
-      freqStart: startFreq,
-      freqEnd: endFreq,
-      centerFreq: (startFreq + endFreq) / 2,
-      bandwidth: Math.abs(endFreq - startFreq)
-    }
+  if (isSpectrumBoxSelecting.value) {
+    spectrumBoxSelection.value.endX = x
   }
 }
 
 function onSpectrumMouseUp() {
-  if (isBoxSelecting.value) {
-    isBoxSelecting.value = false
-  } else {
-    tooltip.value.visible = false
-    hoverInfo.value.visible = false
+  if (isSpectrumBoxSelecting.value) {
+    isSpectrumBoxSelecting.value = false
+
+    const canvas = spectrumCanvasRef.value
+    const rect = canvas.getBoundingClientRect()
+    const plotX = 60
+    const plotWidth = rect.width - 70
+    const freqRange = spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart
+
+    const minX = Math.min(spectrumBoxSelection.value.startX, spectrumBoxSelection.value.endX)
+    const maxX = Math.max(spectrumBoxSelection.value.startX, spectrumBoxSelection.value.endX)
+
+    if (Math.abs(maxX - minX) > 10) {
+      spectrumBoxSelectionPersist.value = true
+      const startFreq = spectrumViewport.value.freqStart + (Math.max(0, minX - plotX) / plotWidth) * freqRange
+      const endFreq = spectrumViewport.value.freqStart + (Math.max(0, maxX - plotX) / plotWidth) * freqRange
+
+      spectrumBoxSelectionInfo.value = {
+        visible: true,
+        freqStart: startFreq,
+        freqEnd: endFreq,
+        centerFreq: (startFreq + endFreq) / 2,
+        bandwidth: Math.abs(endFreq - startFreq)
+      }
+    }
   }
+}
+
+function onSpectrumMouseLeave() {
+  tooltip.value.visible = false
+  hoverInfo.value.visible = false
 }
 
 function onSpectrumWheel(e) {
@@ -438,7 +488,7 @@ function onSpectrumWheel(e) {
   const x = e.clientX - rect.left
 
   const plotX = 60
-  const plotWidth = rect.width - 60
+  const plotWidth = rect.width - 70
 
   const zoomFactor = e.deltaY < 0 ? 0.8 : 1.2
   const freqRange = spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart
@@ -464,18 +514,41 @@ function onSpectrumWheel(e) {
   spectrumViewport.value.freqStart = Math.max(WORLD_FREQ_START, newStart)
   spectrumViewport.value.freqEnd = Math.min(WORLD_FREQ_END, newEnd)
 
+  // 同步更新瀑布图
+  syncWaterfallToSpectrum()
+
   drawSpectrum()
 }
 
-function applyBoxSelection() {
-  spectrumViewport.value.freqStart = boxSelectionInfo.value.freqStart
-  spectrumViewport.value.freqEnd = boxSelectionInfo.value.freqEnd
-  boxSelectionInfo.value.visible = false
+function applySpectrumBoxSelection() {
+  spectrumViewport.value.freqStart = spectrumBoxSelectionInfo.value.freqStart
+  spectrumViewport.value.freqEnd = spectrumBoxSelectionInfo.value.freqEnd
+  spectrumBoxSelectionInfo.value.visible = false
+  spectrumBoxSelectionPersist.value = false
+
+  // 同步更新瀑布图
+  syncWaterfallToSpectrum()
+
   drawSpectrum()
 }
 
-function cancelBoxSelection() {
-  boxSelectionInfo.value.visible = false
+function cancelSpectrumBoxSelection() {
+  spectrumBoxSelectionInfo.value.visible = false
+  spectrumBoxSelectionPersist.value = false
+}
+
+function syncWaterfallToSpectrum() {
+  // 更新瀑布图视口的频率范围
+  const freqStart = spectrumViewport.value.freqStart
+  const freqEnd = spectrumViewport.value.freqEnd
+  const freqRatio = (freqStart - WORLD_FREQ_START) / (WORLD_FREQ_END - WORLD_FREQ_START)
+  const freqEndRatio = (freqEnd - WORLD_FREQ_START) / (WORLD_FREQ_END - WORLD_FREQ_START)
+
+  waterfallViewport.x = freqRatio * worldWidth
+  const viewWidth = (freqEndRatio - freqRatio) * worldWidth
+  waterfallViewport.scale = waterfallViewport.width / Math.max(1, viewWidth)
+
+  scheduleWaterfallRender()
 }
 
 // ==================== 瀑布图渲染 ====================
@@ -538,11 +611,23 @@ async function renderWaterfall() {
   if (!canvas) return
 
   const ctx = canvas.getContext('2d')
-  ctx.clearRect(0, 0, waterfallViewport.width, waterfallViewport.height)
+  const dpr = window.devicePixelRatio || 1
+  const width = waterfallViewport.width
+  const height = waterfallViewport.height
+
+  if (width <= 0 || height <= 0) return
+
+  ctx.save()
+  ctx.scale(dpr, dpr)
+  ctx.clearRect(0, 0, width, height)
+
+  ctx.fillStyle = '#0a0a0a'
+  ctx.fillRect(0, 0, width, height)
 
   const tiles = getVisibleTiles()
   const level = currentLevel.value
 
+  // 绘制低层级瓦片作为过渡
   for (let l = level - 1; l >= 0; l--) {
     const scaleFactor = Math.pow(2, level - l)
     const lowerTilesPerSide = getTilesPerSide(l)
@@ -567,6 +652,7 @@ async function renderWaterfall() {
     }
   }
 
+  // 绘制当前层级瓦片
   for (const tile of tiles) {
     const img = await loadTile(tile.level, tile.x, tile.y)
     if (img) {
@@ -581,6 +667,7 @@ async function renderWaterfall() {
     }
   }
 
+  // 绘制网格
   const gridSpacing = TILE_SIZE * waterfallViewport.scale
   const offsetX = -(waterfallViewport.x * waterfallViewport.scale) % gridSpacing
   const offsetY = -(waterfallViewport.y * waterfallViewport.scale) % gridSpacing
@@ -588,19 +675,64 @@ async function renderWaterfall() {
   ctx.strokeStyle = 'rgba(100, 100, 100, 0.2)'
   ctx.lineWidth = 0.5
 
-  for (let x = offsetX; x < waterfallViewport.width; x += gridSpacing) {
+  for (let x = offsetX; x < width; x += gridSpacing) {
     ctx.beginPath()
     ctx.moveTo(x, 0)
-    ctx.lineTo(x, waterfallViewport.height)
+    ctx.lineTo(x, height)
     ctx.stroke()
   }
 
-  for (let y = offsetY; y < waterfallViewport.height; y += gridSpacing) {
+  for (let y = offsetY; y < height; y += gridSpacing) {
     ctx.beginPath()
     ctx.moveTo(0, y)
-    ctx.lineTo(waterfallViewport.width, y)
+    ctx.lineTo(width, y)
     ctx.stroke()
   }
+
+  ctx.restore()
+
+  // 绘制坐标轴
+  drawWaterfallAxes()
+}
+
+function drawWaterfallAxes() {
+  const canvas = waterfallCanvasRef.value
+  if (!canvas) return
+
+  const ctx = canvas.getContext('2d')
+  const dpr = window.devicePixelRatio || 1
+  const width = waterfallViewport.width
+  const height = waterfallViewport.height
+
+  ctx.save()
+  ctx.scale(dpr, dpr)
+
+  // X轴（频率）- 底部
+  ctx.fillStyle = '#8ab4c7'
+  ctx.font = '10px monospace'
+  ctx.textAlign = 'center'
+
+  for (let i = 0; i <= 10; i++) {
+    const x = (width / 10) * i
+    const worldX = waterfallViewport.x + x / waterfallViewport.scale
+    const freqRatio = worldX / worldWidth
+    const freq = WORLD_FREQ_START + freqRatio * (WORLD_FREQ_END - WORLD_FREQ_START)
+    ctx.fillText((freq / 1e6).toFixed(0), x, height - 5)
+  }
+  ctx.fillText('频率 (MHz)', width / 2, height + 10)
+
+  // Y轴（时间）- 左侧
+  ctx.textAlign = 'right'
+  for (let i = 0; i <= 5; i++) {
+    const y = (height / 5) * i
+    const worldY = waterfallViewport.y + y / waterfallViewport.scale
+    const timeRatio = worldY / worldHeight
+    const time = WORLD_TIME_START + timeRatio * (WORLD_TIME_END - WORLD_TIME_START)
+    const date = new Date(time)
+    ctx.fillText(date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), 50, y + 4)
+  }
+
+  ctx.restore()
 }
 
 function scheduleWaterfallRender() {
@@ -622,16 +754,36 @@ function onWaterfallMouseDown(e) {
   if (e.button !== 0) return
   e.preventDefault()
 
-  waterfallInteraction.isDragging = true
-  waterfallInteraction.dragStartX = e.clientX
-  waterfallInteraction.dragStartY = e.clientY
-  waterfallInteraction.viewStartX = waterfallViewport.x
-  waterfallInteraction.viewStartY = waterfallViewport.y
+  const canvas = waterfallCanvasRef.value
+  const rect = canvas.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
 
-  waterfallCanvasRef.value.style.cursor = 'grabbing'
+  // 判断是否按住 Shift 键进行框选
+  if (e.shiftKey) {
+    isWaterfallBoxSelecting.value = true
+    waterfallBoxSelectionPersist.value = false
+    waterfallBoxSelectionInfo.value.visible = false
+    waterfallBoxSelection.value = { startX: x, startY: y, endX: x, endY: y }
+  } else {
+    waterfallInteraction.isDragging = true
+    waterfallInteraction.dragStartX = e.clientX
+    waterfallInteraction.dragStartY = e.clientY
+    waterfallInteraction.viewStartX = waterfallViewport.x
+    waterfallInteraction.viewStartY = waterfallViewport.y
+
+    canvas.style.cursor = 'grabbing'
+  }
 }
 
 function onWaterfallMouseMove(e) {
+  const canvas = waterfallCanvasRef.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+
   if (waterfallInteraction.isDragging) {
     const dx = (e.clientX - waterfallInteraction.dragStartX) / waterfallViewport.scale
     const dy = (e.clientY - waterfallInteraction.dragStartY) / waterfallViewport.scale
@@ -641,13 +793,47 @@ function onWaterfallMouseMove(e) {
 
     clampWaterfallViewport()
     scheduleWaterfallRender()
+  } else if (isWaterfallBoxSelecting.value) {
+    waterfallBoxSelection.value.endX = x
+    waterfallBoxSelection.value.endY = y
   }
 }
 
 function onWaterfallMouseUp() {
-  waterfallInteraction.isDragging = false
-  if (waterfallCanvasRef.value) {
-    waterfallCanvasRef.value.style.cursor = 'crosshair'
+  const canvas = waterfallCanvasRef.value
+
+  if (waterfallInteraction.isDragging) {
+    waterfallInteraction.isDragging = false
+    if (canvas) canvas.style.cursor = 'crosshair'
+  }
+
+  if (isWaterfallBoxSelecting.value) {
+    isWaterfallBoxSelecting.value = false
+
+    const minX = Math.min(waterfallBoxSelection.value.startX, waterfallBoxSelection.value.endX)
+    const maxX = Math.max(waterfallBoxSelection.value.startX, waterfallBoxSelection.value.endX)
+    const minY = Math.min(waterfallBoxSelection.value.startY, waterfallBoxSelection.value.endY)
+    const maxY = Math.max(waterfallBoxSelection.value.startY, waterfallBoxSelection.value.endY)
+
+    if (Math.abs(maxX - minX) > 10 && Math.abs(maxY - minY) > 10) {
+      waterfallBoxSelectionPersist.value = true
+
+      const worldStart = pixelToWorld(minX, minY)
+      const worldEnd = pixelToWorld(maxX, maxY)
+
+      const freqStartRatio = worldStart.x / worldWidth
+      const freqEndRatio = worldEnd.x / worldWidth
+      const timeStartRatio = worldStart.y / worldHeight
+      const timeEndRatio = worldEnd.y / worldHeight
+
+      waterfallBoxSelectionInfo.value = {
+        visible: true,
+        freqStart: WORLD_FREQ_START + freqStartRatio * (WORLD_FREQ_END - WORLD_FREQ_START),
+        freqEnd: WORLD_FREQ_START + freqEndRatio * (WORLD_FREQ_END - WORLD_FREQ_START),
+        timeStart: WORLD_TIME_START + timeStartRatio * (WORLD_TIME_END - WORLD_TIME_START),
+        timeEnd: WORLD_TIME_START + timeEndRatio * (WORLD_TIME_END - WORLD_TIME_START)
+      }
+    }
   }
 }
 
@@ -676,6 +862,36 @@ function onWaterfallWheel(e) {
     clampWaterfallViewport()
     scheduleWaterfallRender()
   }
+}
+
+function applyWaterfallBoxSelection() {
+  // 更新频谱图频率范围
+  spectrumViewport.value.freqStart = waterfallBoxSelectionInfo.value.freqStart
+  spectrumViewport.value.freqEnd = waterfallBoxSelectionInfo.value.freqEnd
+
+  // 更新瀑布图视口
+  const freqStartRatio = (waterfallBoxSelectionInfo.value.freqStart - WORLD_FREQ_START) / (WORLD_FREQ_END - WORLD_FREQ_START)
+  const freqEndRatio = (waterfallBoxSelectionInfo.value.freqEnd - WORLD_FREQ_START) / (WORLD_FREQ_END - WORLD_FREQ_START)
+  const timeStartRatio = (waterfallBoxSelectionInfo.value.timeStart - WORLD_TIME_START) / (WORLD_TIME_END - WORLD_TIME_START)
+  const timeEndRatio = (waterfallBoxSelectionInfo.value.timeEnd - WORLD_TIME_START) / (WORLD_TIME_END - WORLD_TIME_START)
+
+  waterfallViewport.x = freqStartRatio * worldWidth
+  waterfallViewport.y = timeStartRatio * worldHeight
+
+  const viewWidth = (freqEndRatio - freqStartRatio) * worldWidth
+  const viewHeight = (timeEndRatio - timeStartRatio) * worldHeight
+  waterfallViewport.scale = Math.min(waterfallViewport.width / viewWidth, waterfallViewport.height / viewHeight)
+
+  waterfallBoxSelectionInfo.value.visible = false
+  waterfallBoxSelectionPersist.value = false
+
+  drawSpectrum()
+  scheduleWaterfallRender()
+}
+
+function cancelWaterfallBoxSelection() {
+  waterfallBoxSelectionInfo.value.visible = false
+  waterfallBoxSelectionPersist.value = false
 }
 
 function changeLevel(newLevel, worldPos, px, py) {
@@ -707,6 +923,36 @@ function clampWaterfallViewport() {
   const minScale = Math.min(waterfallViewport.width / worldWidth, waterfallViewport.height / worldHeight)
   const maxScale = 10
   waterfallViewport.scale = Math.max(minScale, Math.min(waterfallViewport.scale, maxScale))
+}
+
+// ==================== 颜色柱绘制 ====================
+function drawColorBar() {
+  const canvas = colorBarCanvasRef.value
+  if (!canvas) return
+
+  const ctx = canvas.getContext('2d')
+  const dpr = window.devicePixelRatio || 1
+  const width = 20
+  const height = Math.floor(canvas.height / dpr)
+
+  if (height <= 0) return
+
+  ctx.save()
+  ctx.scale(dpr, dpr)
+  ctx.clearRect(0, 0, width, height)
+
+  // 绘制颜色渐变
+  const gradient = ctx.createLinearGradient(0, 0, 0, height)
+  gradient.addColorStop(0, '#ff0000')
+  gradient.addColorStop(0.25, '#ffff00')
+  gradient.addColorStop(0.5, '#00ff00')
+  gradient.addColorStop(0.75, '#00ffff')
+  gradient.addColorStop(1, '#0000ff')
+
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, width, height)
+
+  ctx.restore()
 }
 
 // ==================== 工具方法 ====================
@@ -762,34 +1008,61 @@ function formatFreq(freq) {
   return freq.toFixed(0) + ' Hz'
 }
 
+function formatTime(timestamp) {
+  if (!timestamp) return '--'
+  const date = new Date(timestamp)
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 // ==================== 画布尺寸调整 ====================
 function resizeCanvas() {
   const spectrumArea = spectrumAreaRef.value
   const spectrumCanvas = spectrumCanvasRef.value
   const waterfallArea = waterfallAreaRef.value
   const waterfallCanvas = waterfallCanvasRef.value
+  const colorBarCanvas = colorBarCanvasRef.value
+
+  const dpr = window.devicePixelRatio || 1
 
   if (spectrumArea && spectrumCanvas) {
-    const dpr = window.devicePixelRatio || 1
     const sW = spectrumArea.clientWidth
     const sH = spectrumArea.clientHeight
-    spectrumCanvas.width = sW * dpr
-    spectrumCanvas.height = sH * dpr
-    spectrumCanvas.style.width = sW + 'px'
-    spectrumCanvas.style.height = sH + 'px'
+    if (sW > 0 && sH > 0) {
+      spectrumCanvas.width = sW * dpr
+      spectrumCanvas.height = sH * dpr
+      spectrumCanvas.style.width = sW + 'px'
+      spectrumCanvas.style.height = sH + 'px'
+    }
   }
 
   if (waterfallArea && waterfallCanvas) {
-    const dpr = window.devicePixelRatio || 1
     const wW = waterfallArea.clientWidth
     const wH = waterfallArea.clientHeight
-    waterfallCanvas.width = wW * dpr
-    waterfallCanvas.height = wH * dpr
-    waterfallCanvas.style.width = wW + 'px'
-    waterfallCanvas.style.height = wH + 'px'
+    if (wW > 0 && wH > 0) {
+      waterfallCanvas.width = wW * dpr
+      waterfallCanvas.height = wH * dpr
+      waterfallCanvas.style.width = wW + 'px'
+      waterfallCanvas.style.height = wH + 'px'
 
-    waterfallViewport.width = wW
-    waterfallViewport.height = wH
+      waterfallViewport.width = wW
+      waterfallViewport.height = wH
+    }
+  }
+
+  if (colorBarCanvas) {
+    const cbW = 20
+    const cbH = waterfallArea?.clientHeight || 200
+    if (cbH > 0) {
+      colorBarCanvas.width = cbW * dpr
+      colorBarCanvas.height = cbH * dpr
+      colorBarCanvas.style.width = cbW + 'px'
+      colorBarCanvas.style.height = cbH + 'px'
+    }
   }
 
   if (worldWidth === 0 || waterfallViewport.width === 0) {
@@ -803,7 +1076,11 @@ function resizeCanvas() {
 
   drawSpectrum()
   scheduleWaterfallRender()
+  drawColorBar()
 }
+
+// ResizeObserver 监听容器尺寸变化
+let resizeObserver = null
 
 // ==================== 生命周期 ====================
 onMounted(async () => {
@@ -827,11 +1104,17 @@ onMounted(async () => {
     sessionId = 'mock-session-' + Date.now()
   }
 
+  // 初始化世界尺寸
+  const worldSize = getWorldSize(currentLevel.value)
+  worldWidth = worldSize.width
+  worldHeight = worldSize.height
+
+  // 等待容器尺寸就绪
   const tryInitialize = () => {
     const spectrumArea = spectrumAreaRef.value
     const waterfallArea = waterfallAreaRef.value
-    
-    if (spectrumArea && waterfallArea && 
+
+    if (spectrumArea && waterfallArea &&
         spectrumArea.clientWidth > 0 && waterfallArea.clientHeight > 0) {
       resizeCanvas()
       return true
@@ -840,37 +1123,29 @@ onMounted(async () => {
   }
 
   if (!tryInitialize()) {
-    const observer = new MutationObserver(() => {
+    const checkInterval = setInterval(() => {
       if (tryInitialize()) {
-        observer.disconnect()
+        clearInterval(checkInterval)
       }
-    })
-    
-    const container = spectrumAreaRef.value?.parentElement || document.body
-    observer.observe(container, { 
-      attributes: true, 
-      childList: true, 
-      subtree: true 
-    })
-    
-    const interval = setInterval(() => {
-      if (tryInitialize()) {
-        clearInterval(interval)
-        observer.disconnect()
-      }
-    }, 100)
-    
-    onUnmounted(() => {
-      clearInterval(interval)
-      observer.disconnect()
-    })
+    }, 50)
+
+    setTimeout(() => clearInterval(checkInterval), 5000)
   }
-  
-  window.addEventListener('resize', resizeCanvas)
+
+  // 使用 ResizeObserver 监听容器尺寸变化
+  resizeObserver = new ResizeObserver(() => {
+    resizeCanvas()
+  })
+
+  if (containerRef.value) {
+    resizeObserver.observe(containerRef.value)
+  }
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', resizeCanvas)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
   tileCache.clear()
 })
 </script>
@@ -884,6 +1159,7 @@ onUnmounted(() => {
   background: #0a1628;
   color: #e0e0e0;
   overflow: hidden;
+  position: relative;
 }
 
 .toolbar {
@@ -917,7 +1193,7 @@ onUnmounted(() => {
 .spectrum-area {
   position: relative;
   flex: 0 0 35%;
-  min-height: 200px;
+  min-height: 180px;
   background: #0a0a0a;
   border-bottom: 1px solid #1e4976;
 }
@@ -964,6 +1240,14 @@ onUnmounted(() => {
   z-index: 50;
 }
 
+.waterfall-box-selection {
+  position: absolute;
+  border: 2px dashed #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+  pointer-events: none;
+  z-index: 50;
+}
+
 .box-selection-info {
   position: absolute;
   top: 10px;
@@ -978,6 +1262,11 @@ onUnmounted(() => {
   min-width: 200px;
 }
 
+.waterfall-selection-info {
+  top: 10px;
+  left: 10px;
+}
+
 .info-actions {
   margin-top: 10px;
   display: flex;
@@ -985,23 +1274,38 @@ onUnmounted(() => {
   justify-content: flex-end;
 }
 
-.time-axis {
+.color-bar {
   position: absolute;
-  bottom: -20px;
-  left: 0;
-  right: 0;
-  height: 20px;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
-  padding: 0 10px;
-  background: #0d1f35;
-  border-top: 1px solid #1e4976;
+  z-index: 50;
+  background: rgba(10, 22, 40, 0.9);
+  border: 1px solid #1e4976;
+  border-radius: 4px;
+  padding: 5px;
 }
 
-.time-axis span {
-  position: absolute;
-  font-size: 11px;
+.color-bar-canvas {
+  width: 20px;
+  height: 200px;
+  display: block;
+}
+
+.color-bar-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 200px;
+  padding-left: 5px;
+  font-size: 10px;
   color: #8ab4c7;
   font-family: monospace;
+}
+
+.color-bar-labels span {
+  line-height: 1;
 }
 </style>
