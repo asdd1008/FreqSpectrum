@@ -1,5 +1,49 @@
 <template>
   <div class="history-spectrum-v2-container" ref="containerRef">
+    <!-- 查询栏 -->
+    <div class="query-bar">
+      <div class="query-item">
+        <span class="query-label">频率范围 (MHz):</span>
+        <el-input-number 
+          v-model="queryParams.freqStart" 
+          :min="900" 
+          :max="1100" 
+          :step="1"
+          size="small"
+          class="query-input"
+        />
+        <span class="query-separator">-</span>
+        <el-input-number 
+          v-model="queryParams.freqEnd" 
+          :min="900" 
+          :max="1100" 
+          :step="1"
+          size="small"
+          class="query-input"
+        />
+      </div>
+      <div class="query-item">
+        <span class="query-label">时间范围:</span>
+        <el-date-picker 
+          v-model="queryParams.timeStart" 
+          type="datetime"
+          size="small"
+          value-format="timestamp"
+          class="query-input"
+        />
+        <span class="query-separator">-</span>
+        <el-date-picker 
+          v-model="queryParams.timeEnd" 
+          type="datetime"
+          size="small"
+          value-format="timestamp"
+          class="query-input"
+        />
+      </div>
+      <el-button size="small" type="primary" @click="handleQuery">查询</el-button>
+      <el-button size="small" @click="resetQuery">重置</el-button>
+    </div>
+
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
@@ -80,6 +124,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 
 // ==================== 常量定义 ====================
 const TILE_SIZE = 120
@@ -122,6 +167,13 @@ const isWaterfallBoxSelecting = ref(false)
 const waterfallBoxSelectionPersist = ref(false)
 const waterfallBoxSelection = ref({ startX: 0, startY: 0, endX: 0, endY: 0 })
 const waterfallBoxSelectionInfo = ref({ visible: false, freqStart: 0, freqEnd: 0, timeStart: 0, timeEnd: 0 })
+
+const queryParams = ref({
+  freqStart: 900,
+  freqEnd: 1100,
+  timeStart: Date.now() - 3600 * 1000,
+  timeEnd: Date.now()
+})
 
 const tooltipStyle = computed(() => ({
   left: tooltip.value.x + 15 + 'px',
@@ -565,7 +617,10 @@ function getVisibleTiles() {
 
   const viewLeft = waterfallViewport.value.x
   const viewTop = waterfallViewport.value.y
-  const viewRight = waterfallViewport.value.x + waterfallViewport.value.width / waterfallViewport.value.scale
+  const paddingLeft = 60
+  const paddingRight = 50
+  const effectiveWidth = waterfallViewport.value.width - paddingLeft - paddingRight
+  const viewRight = waterfallViewport.value.x + effectiveWidth / waterfallViewport.value.scale
   const viewBottom = waterfallViewport.value.y + waterfallViewport.value.height / waterfallViewport.value.scale
 
   const startX = Math.max(0, Math.floor(viewLeft / TILE_SIZE))
@@ -602,7 +657,8 @@ async function renderWaterfall() {
 
   const paddingLeft = 60
   const paddingBottom = 30
-  const plotWidth = width - paddingLeft
+  const paddingRight = 50
+  const plotWidth = width - paddingLeft - paddingRight
   const plotHeight = height - paddingBottom
 
   ctx.save()
@@ -643,7 +699,7 @@ async function renderWaterfall() {
   for (let y = offsetY; y < plotHeight; y += gridSpacing) {
     ctx.beginPath()
     ctx.moveTo(paddingLeft, y)
-    ctx.lineTo(width, y)
+    ctx.lineTo(width - paddingRight, y)
     ctx.stroke()
   }
 
@@ -656,7 +712,8 @@ async function renderWaterfall() {
 function drawWaterfallAxes(ctx, width, height) {
   const paddingLeft = 60
   const paddingBottom = 30
-  const plotWidth = width - paddingLeft
+  const paddingRight = 50
+  const plotWidth = width - paddingLeft - paddingRight
   const plotHeight = height - paddingBottom
 
   ctx.fillStyle = '#8ab4c7'
@@ -667,7 +724,7 @@ function drawWaterfallAxes(ctx, width, height) {
 
   ctx.beginPath()
   ctx.moveTo(paddingLeft, plotHeight)
-  ctx.lineTo(width, plotHeight)
+  ctx.lineTo(width - paddingRight, plotHeight)
   ctx.stroke()
 
   ctx.textAlign = 'center'
@@ -926,6 +983,48 @@ function drawColorBar() {
 }
 
 // ==================== 工具方法 ====================
+function handleQuery() {
+  const freqStart = queryParams.value.freqStart * 1e6
+  const freqEnd = queryParams.value.freqEnd * 1e6
+  const timeStart = queryParams.value.timeStart
+  const timeEnd = queryParams.value.timeEnd
+
+  if (freqStart >= freqEnd) {
+    ElMessage.error('频率起始值必须小于结束值')
+    return
+  }
+  if (timeStart >= timeEnd) {
+    ElMessage.error('时间起始值必须小于结束值')
+    return
+  }
+
+  spectrumViewport.value.freqStart = freqStart
+  spectrumViewport.value.freqEnd = freqEnd
+
+  const freqRatio = (freqStart - WORLD_FREQ_START) / (WORLD_FREQ_END - WORLD_FREQ_START)
+  const freqEndRatio = (freqEnd - WORLD_FREQ_START) / (WORLD_FREQ_END - WORLD_FREQ_START)
+  
+  waterfallViewport.value.x = freqRatio * worldWidth
+  const viewWidth = (freqEndRatio - freqRatio) * worldWidth
+  waterfallViewport.value.scale = (waterfallViewport.value.width - 110) / Math.max(1, viewWidth)
+
+  tileCache.clear()
+  drawSpectrum()
+  scheduleWaterfallRender()
+
+  ElMessage.success('查询完成')
+}
+
+function resetQuery() {
+  queryParams.value = {
+    freqStart: 900,
+    freqEnd: 1100,
+    timeStart: Date.now() - 3600 * 1000,
+    timeEnd: Date.now()
+  }
+  resetView()
+}
+
 function resetView() {
   currentLevel.value = MIN_LEVEL
   const worldSize = getWorldSize(MIN_LEVEL)
@@ -1131,6 +1230,37 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.query-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: #0d1f35;
+  border-bottom: 1px solid #1e4976;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.query-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.query-label {
+  font-size: 12px;
+  color: #8ab4c7;
+  white-space: nowrap;
+}
+
+.query-input {
+  width: 100px;
+}
+
+.query-separator {
+  color: #8ab4c7;
+}
+
 .toolbar {
   flex: 0 0 auto;
   display: flex;
@@ -1161,8 +1291,8 @@ onUnmounted(() => {
 
 .spectrum-area {
   position: relative;
-  flex: 0 0 35%;
-  min-height: 180px;
+  flex: 0 0 38%;
+  min-height: 200px;
   background: #0a0a0a;
   border-bottom: 1px solid #1e4976;
 }
@@ -1177,7 +1307,7 @@ onUnmounted(() => {
 .waterfall-area {
   position: relative;
   flex: 1;
-  min-height: 200px;
+  min-height: 220px;
   background: #0a0a0a;
   padding-right: 60px;
 }
@@ -1250,7 +1380,7 @@ onUnmounted(() => {
   position: absolute;
   right: 10px;
   top: 10px;
-  bottom: 40px;
+  bottom: 35px;
   width: 40px;
   display: flex;
   flex-direction: row;
@@ -1260,6 +1390,7 @@ onUnmounted(() => {
   border: 1px solid #1e4976;
   border-radius: 4px;
   padding: 4px;
+  box-sizing: border-box;
 }
 
 .color-bar-canvas {
@@ -1274,12 +1405,12 @@ onUnmounted(() => {
   justify-content: space-between;
   height: 100%;
   padding-left: 4px;
-  padding-top: 2px;
-  padding-bottom: 2px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   font-size: 10px;
   color: #8ab4c7;
   font-family: monospace;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .color-bar-labels span {
