@@ -187,12 +187,18 @@ const spectrumBoxSelectionStyle = computed(() => ({
   height: '100%'
 }))
 
-const waterfallBoxSelectionStyle = computed(() => ({
-  left: Math.min(waterfallBoxSelection.value.startX, waterfallBoxSelection.value.endX) + 'px',
-  top: Math.min(waterfallBoxSelection.value.startY, waterfallBoxSelection.value.endY) + 'px',
-  width: Math.abs(waterfallBoxSelection.value.endX - waterfallBoxSelection.value.startX) + 'px',
-  height: Math.abs(waterfallBoxSelection.value.endY - waterfallBoxSelection.value.startY) + 'px'
-}))
+const waterfallBoxSelectionStyle = computed(() => {
+  const paddingLeft = 60
+  const paddingTop = 8
+  const left = paddingLeft + Math.min(waterfallBoxSelection.value.startX, waterfallBoxSelection.value.endX)
+  const top = paddingTop + Math.min(waterfallBoxSelection.value.startY, waterfallBoxSelection.value.endY)
+  return {
+    left: left + 'px',
+    top: top + 'px',
+    width: Math.abs(waterfallBoxSelection.value.endX - waterfallBoxSelection.value.startX) + 'px',
+    height: Math.abs(waterfallBoxSelection.value.endY - waterfallBoxSelection.value.startY) + 'px'
+  }
+})
 
 const spectrumViewport = ref({
   freqStart: WORLD_FREQ_START,
@@ -420,30 +426,42 @@ function drawSpectrumAxes(ctx, plotX, plotY, plotWidth, plotHeight, width, heigh
   ctx.fillStyle = '#8ab4c7'
   ctx.font = '11px monospace'
 
+  // X轴底线
   ctx.beginPath()
   ctx.moveTo(plotX, plotY + plotHeight)
   ctx.lineTo(plotX + plotWidth, plotY + plotHeight)
   ctx.stroke()
 
+  // X轴标签：动态计算避免重叠
+  const xLabelWidth = 35
+  const xTickCount = Math.min(10, Math.max(4, Math.floor(plotWidth / xLabelWidth)))
   ctx.textAlign = 'center'
-  for (let i = 0; i <= 10; i++) {
-    const x = plotX + (plotWidth / 10) * i
-    const freq = spectrumViewport.value.freqStart + (spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart) * (i / 10)
+  for (let i = 0; i <= xTickCount; i++) {
+    const x = plotX + (plotWidth / xTickCount) * i
+    const freq = spectrumViewport.value.freqStart + (spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart) * (i / xTickCount)
     ctx.fillText((freq / 1e6).toFixed(0), x, plotY + plotHeight + 15)
   }
   ctx.fillText('频率 (MHz)', plotX + plotWidth / 2, plotY + plotHeight + 30)
 
+  // Y轴线
   ctx.beginPath()
   ctx.moveTo(plotX, plotY)
   ctx.lineTo(plotX, plotY + plotHeight)
   ctx.stroke()
 
+  // Y轴标签：动态计算避免重叠
+  const yLabelHeight = 14
+  const yTickCount = Math.min(8, Math.max(4, Math.floor(plotHeight / (yLabelHeight * 1.5))))
   ctx.textAlign = 'right'
-  for (let i = 0; i <= 8; i++) {
-    const y = plotY + (plotHeight / 8) * i
-    const level = spectrumViewport.value.refLevel - i * (spectrumViewport.value.refLevel - spectrumViewport.value.minLevel) / 8
-    ctx.fillText(level.toFixed(0), plotX - 5, y + 4)
+  ctx.textBaseline = 'middle'
+  for (let i = 0; i <= yTickCount; i++) {
+    const y = plotY + (plotHeight / yTickCount) * i
+    const level = spectrumViewport.value.refLevel - i * (spectrumViewport.value.refLevel - spectrumViewport.value.minLevel) / yTickCount
+    ctx.fillText(level.toFixed(0), plotX - 5, y)
   }
+  ctx.textBaseline = 'alphabetic'
+
+  // Y轴名称
   ctx.save()
   ctx.translate(15, plotY + plotHeight / 2)
   ctx.rotate(-Math.PI / 2)
@@ -581,7 +599,8 @@ function syncWaterfallToSpectrum() {
 
   waterfallViewport.value.x = freqRatio * worldWidth
   const viewWidth = (freqEndRatio - freqRatio) * worldWidth
-  waterfallViewport.value.scale = waterfallViewport.value.width / Math.max(1, viewWidth)
+  const effectiveWidth = Math.max(100, waterfallViewport.value.width - 60 - 55)
+  waterfallViewport.value.scale = effectiveWidth / Math.max(1, viewWidth)
 
   scheduleWaterfallRender()
 }
@@ -598,9 +617,10 @@ function getWorldSize(level) {
 
 function pixelToWorld(px, py) {
   const paddingLeft = 60
+  const paddingTop = 8
   return {
     x: waterfallViewport.value.x + (px - paddingLeft) / waterfallViewport.value.scale,
-    y: waterfallViewport.value.y + py / waterfallViewport.value.scale
+    y: waterfallViewport.value.y + (py - paddingTop) / waterfallViewport.value.scale
   }
 }
 
@@ -618,10 +638,13 @@ function getVisibleTiles() {
   const viewLeft = waterfallViewport.value.x
   const viewTop = waterfallViewport.value.y
   const paddingLeft = 60
-  const paddingRight = 50
+  const paddingRight = 55
+  const paddingTop = 8
+  const paddingBottom = 30
   const effectiveWidth = waterfallViewport.value.width - paddingLeft - paddingRight
+  const effectiveHeight = waterfallViewport.value.height - paddingTop - paddingBottom
   const viewRight = waterfallViewport.value.x + effectiveWidth / waterfallViewport.value.scale
-  const viewBottom = waterfallViewport.value.y + waterfallViewport.value.height / waterfallViewport.value.scale
+  const viewBottom = waterfallViewport.value.y + effectiveHeight / waterfallViewport.value.scale
 
   const startX = Math.max(0, Math.floor(viewLeft / TILE_SIZE))
   const endX = Math.min(tilesPerSide, Math.ceil(viewRight / TILE_SIZE))
@@ -657,13 +680,14 @@ async function renderWaterfall() {
 
   const paddingLeft = 60
   const paddingBottom = 30
-  const paddingRight = 50
+  const paddingRight = 55
+  const paddingTop = 8
   const plotWidth = width - paddingLeft - paddingRight
-  const plotHeight = height - paddingBottom
+  const plotHeight = height - paddingBottom - paddingTop
 
   ctx.save()
   ctx.beginPath()
-  ctx.rect(paddingLeft, 0, plotWidth, plotHeight)
+  ctx.rect(paddingLeft, paddingTop, plotWidth, plotHeight)
   ctx.clip()
 
   const tiles = getVisibleTiles()
@@ -673,12 +697,12 @@ async function renderWaterfall() {
     if (img) {
       const screenPos = worldToPixel(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
       const drawSize = TILE_SIZE * waterfallViewport.value.scale
-      ctx.drawImage(img, screenPos.x + paddingLeft, screenPos.y, drawSize, drawSize)
+      ctx.drawImage(img, screenPos.x + paddingLeft, screenPos.y + paddingTop, drawSize, drawSize)
     } else {
       const screenPos = worldToPixel(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
       const drawSize = TILE_SIZE * waterfallViewport.value.scale
       ctx.fillStyle = 'rgba(20, 30, 50, 0.5)'
-      ctx.fillRect(screenPos.x + paddingLeft, screenPos.y, drawSize, drawSize)
+      ctx.fillRect(screenPos.x + paddingLeft, screenPos.y + paddingTop, drawSize, drawSize)
     }
   }
 
@@ -691,15 +715,15 @@ async function renderWaterfall() {
 
   for (let x = offsetX; x < plotWidth; x += gridSpacing) {
     ctx.beginPath()
-    ctx.moveTo(paddingLeft + x, 0)
-    ctx.lineTo(paddingLeft + x, plotHeight)
+    ctx.moveTo(paddingLeft + x, paddingTop)
+    ctx.lineTo(paddingLeft + x, paddingTop + plotHeight)
     ctx.stroke()
   }
 
   for (let y = offsetY; y < plotHeight; y += gridSpacing) {
     ctx.beginPath()
-    ctx.moveTo(paddingLeft, y)
-    ctx.lineTo(width - paddingRight, y)
+    ctx.moveTo(paddingLeft, paddingTop + y)
+    ctx.lineTo(width - paddingRight, paddingTop + y)
     ctx.stroke()
   }
 
@@ -712,9 +736,10 @@ async function renderWaterfall() {
 function drawWaterfallAxes(ctx, width, height) {
   const paddingLeft = 60
   const paddingBottom = 30
-  const paddingRight = 50
+  const paddingRight = 55
+  const paddingTop = 8
   const plotWidth = width - paddingLeft - paddingRight
-  const plotHeight = height - paddingBottom
+  const plotHeight = height - paddingBottom - paddingTop
 
   ctx.fillStyle = '#8ab4c7'
   ctx.font = '11px monospace'
@@ -722,38 +747,61 @@ function drawWaterfallAxes(ctx, width, height) {
   ctx.strokeStyle = '#3a6b9c'
   ctx.lineWidth = 1
 
+  // X轴底线
   ctx.beginPath()
-  ctx.moveTo(paddingLeft, plotHeight)
-  ctx.lineTo(width - paddingRight, plotHeight)
+  ctx.moveTo(paddingLeft, paddingTop + plotHeight)
+  ctx.lineTo(width - paddingRight, paddingTop + plotHeight)
   ctx.stroke()
 
-  ctx.textAlign = 'center'
-  for (let i = 0; i <= 10; i++) {
-    const plotX = (plotWidth / 10) * i
+  // X轴标签：均匀分布，首尾标签使用左右对齐避免溢出
+  const xTickCount = Math.min(10, Math.max(4, Math.floor(plotWidth / 60)))
+  for (let i = 0; i <= xTickCount; i++) {
+    const plotX = (plotWidth / xTickCount) * i
     const x = paddingLeft + plotX
     const worldX = waterfallViewport.value.x + plotX / waterfallViewport.value.scale
-    const freqRatio = worldX / worldWidth
+    const freqRatio = Math.max(0, Math.min(1, worldX / worldWidth))
     const freq = WORLD_FREQ_START + freqRatio * (WORLD_FREQ_END - WORLD_FREQ_START)
-    ctx.fillText((freq / 1e6).toFixed(0), x, height - 8)
+
+    if (i === 0) {
+      ctx.textAlign = 'left'
+      ctx.fillText((freq / 1e6).toFixed(0), paddingLeft + 2, height - 8)
+    } else if (i === xTickCount) {
+      ctx.textAlign = 'right'
+      ctx.fillText((freq / 1e6).toFixed(0), width - paddingRight - 2, height - 8)
+    } else {
+      ctx.textAlign = 'center'
+      ctx.fillText((freq / 1e6).toFixed(0), x, height - 8)
+    }
   }
+  ctx.textAlign = 'center'
   ctx.fillText('频率 (MHz)', paddingLeft + plotWidth / 2, height)
 
+  // Y轴线
   ctx.beginPath()
-  ctx.moveTo(paddingLeft, 0)
-  ctx.lineTo(paddingLeft, plotHeight)
+  ctx.moveTo(paddingLeft, paddingTop)
+  ctx.lineTo(paddingLeft, paddingTop + plotHeight)
   ctx.stroke()
 
+  // Y轴标签：动态计算标签数量避免重叠
+  const labelHeight = 14
+  const maxLabels = Math.max(2, Math.floor(plotHeight / (labelHeight * 1.5)))
+  const yTickCount = Math.min(6, maxLabels)
+
   ctx.textAlign = 'right'
-  for (let i = 0; i <= 5; i++) {
-    const y = (plotHeight / 5) * i
-    const worldY = waterfallViewport.value.y + y / waterfallViewport.value.scale
-    const timeRatio = worldY / worldHeight
+  ctx.textBaseline = 'middle'
+  for (let i = 0; i < yTickCount; i++) {
+    const y = paddingTop + (plotHeight / (yTickCount - 1)) * i
+    const worldY = waterfallViewport.value.y + (y - paddingTop) / waterfallViewport.value.scale
+    const timeRatio = Math.max(0, Math.min(1, worldY / worldHeight))
     const time = WORLD_TIME_START + timeRatio * (WORLD_TIME_END - WORLD_TIME_START)
     const date = new Date(time)
-    ctx.fillText(date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), paddingLeft - 5, y + 4)
+    ctx.fillText(date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), paddingLeft - 6, y)
   }
+  ctx.textBaseline = 'alphabetic'
+
+  // Y轴名称
   ctx.save()
-  ctx.translate(20, plotHeight / 2)
+  ctx.translate(16, paddingTop + plotHeight / 2)
   ctx.rotate(-Math.PI / 2)
   ctx.textAlign = 'center'
   ctx.fillText('时间', 0, 0)
@@ -786,7 +834,12 @@ function onWaterfallMouseDown(e) {
   const y = e.clientY - rect.top
 
   const paddingLeft = 60
-  if (x < paddingLeft) return
+  const paddingTop = 8
+  const paddingRight = 55
+  const paddingBottom = 30
+
+  if (x < paddingLeft || x > rect.width - paddingRight ||
+      y < paddingTop || y > rect.height - paddingBottom) return
 
   waterfallInteraction.isDragging = true
   waterfallInteraction.isBoxSelecting = true
@@ -798,7 +851,7 @@ function onWaterfallMouseDown(e) {
   isWaterfallBoxSelecting.value = true
   waterfallBoxSelectionPersist.value = false
   waterfallBoxSelectionInfo.value.visible = false
-  waterfallBoxSelection.value = { startX: x - paddingLeft, startY: y, endX: x - paddingLeft, endY: y }
+  waterfallBoxSelection.value = { startX: x - paddingLeft, startY: y - paddingTop, endX: x - paddingLeft, endY: y - paddingTop }
 
   canvas.style.cursor = 'crosshair'
 }
@@ -812,11 +865,17 @@ function onWaterfallMouseMove(e) {
   const y = e.clientY - rect.top
 
   const paddingLeft = 60
+  const paddingTop = 8
+  const paddingRight = 55
+  const paddingBottom = 30
+  const maxPlotX = rect.width - paddingLeft - paddingRight
+  const maxPlotY = rect.height - paddingTop - paddingBottom
 
   if (waterfallInteraction.isDragging && waterfallInteraction.isBoxSelecting) {
-    const plotX = Math.max(0, x - paddingLeft)
+    const plotX = Math.max(0, Math.min(maxPlotX, x - paddingLeft))
+    const plotY = Math.max(0, Math.min(maxPlotY, y - paddingTop))
     waterfallBoxSelection.value.endX = plotX
-    waterfallBoxSelection.value.endY = y
+    waterfallBoxSelection.value.endY = plotY
   } else if (waterfallInteraction.isDragging) {
     const dx = (e.clientX - waterfallInteraction.dragStartX) / waterfallViewport.value.scale
     const dy = (e.clientY - waterfallInteraction.dragStartY) / waterfallViewport.value.scale
@@ -844,13 +903,15 @@ function onWaterfallMouseUp() {
       waterfallBoxSelectionPersist.value = true
 
       const paddingLeft = 60
-      const worldStart = pixelToWorld(minX + paddingLeft, minY)
-      const worldEnd = pixelToWorld(maxX + paddingLeft, maxY)
+      const paddingTop = 8
+      // 框选坐标是相对于绘图区域的，需要加回padding得到原始canvas坐标
+      const worldStart = pixelToWorld(minX + paddingLeft, minY + paddingTop)
+      const worldEnd = pixelToWorld(maxX + paddingLeft, maxY + paddingTop)
 
-      const freqStartRatio = worldStart.x / worldWidth
-      const freqEndRatio = worldEnd.x / worldWidth
-      const timeStartRatio = worldStart.y / worldHeight
-      const timeEndRatio = worldEnd.y / worldHeight
+      const freqStartRatio = Math.max(0, Math.min(1, worldStart.x / worldWidth))
+      const freqEndRatio = Math.max(0, Math.min(1, worldEnd.x / worldWidth))
+      const timeStartRatio = Math.max(0, Math.min(1, worldStart.y / worldHeight))
+      const timeEndRatio = Math.max(0, Math.min(1, worldEnd.y / worldHeight))
 
       waterfallBoxSelectionInfo.value = {
         visible: true,
@@ -875,6 +936,9 @@ function onWaterfallWheel(e) {
   const px = e.clientX - rect.left
   const py = e.clientY - rect.top
 
+  const paddingLeft = 60
+  const paddingTop = 8
+
   const worldPosBefore = pixelToWorld(px, py)
   const zoomFactor = e.deltaY < 0 ? 1.2 : 0.8
   const newScale = waterfallViewport.value.scale * zoomFactor
@@ -882,7 +946,7 @@ function onWaterfallWheel(e) {
   const targetLevel = Math.max(MIN_LEVEL, Math.min(MAX_LEVEL, Math.round(Math.log2(newScale) + 2)))
 
   if (targetLevel !== currentLevel.value) {
-    changeLevel(targetLevel, worldPosBefore, px - 60, py)
+    changeLevel(targetLevel, worldPosBefore, px - paddingLeft, py - paddingTop)
   } else {
     waterfallViewport.value.scale = newScale
     const worldPosAfter = pixelToWorld(px, py)
@@ -908,7 +972,9 @@ function applyWaterfallBoxSelection() {
 
   const viewWidth = (freqEndRatio - freqStartRatio) * worldWidth
   const viewHeight = (timeEndRatio - timeStartRatio) * worldHeight
-  waterfallViewport.value.scale = Math.min(waterfallViewport.value.width / viewWidth, waterfallViewport.value.height / viewHeight)
+  const effectiveWidth = Math.max(100, waterfallViewport.value.width - 60 - 55)
+  const effectiveHeight = Math.max(100, waterfallViewport.value.height - 8 - 30)
+  waterfallViewport.value.scale = Math.min(effectiveWidth / viewWidth, effectiveHeight / viewHeight)
 
   waterfallBoxSelectionInfo.value.visible = false
   waterfallBoxSelectionPersist.value = false
@@ -942,13 +1008,16 @@ function changeLevel(newLevel, worldPos, px, py) {
 }
 
 function clampWaterfallViewport() {
-  const maxX = worldWidth - waterfallViewport.value.width / waterfallViewport.value.scale
-  const maxY = worldHeight - waterfallViewport.value.height / waterfallViewport.value.scale
+  const effectiveWidth = Math.max(100, waterfallViewport.value.width - 60 - 55)
+  const effectiveHeight = Math.max(100, waterfallViewport.value.height - 8 - 30)
+
+  const maxX = worldWidth - effectiveWidth / waterfallViewport.value.scale
+  const maxY = worldHeight - effectiveHeight / waterfallViewport.value.scale
 
   waterfallViewport.value.x = Math.max(0, Math.min(waterfallViewport.value.x, maxX))
   waterfallViewport.value.y = Math.max(0, Math.min(waterfallViewport.value.y, maxY))
 
-  const minScale = Math.min(waterfallViewport.value.width / worldWidth, waterfallViewport.value.height / worldHeight)
+  const minScale = Math.min(effectiveWidth / worldWidth, effectiveHeight / worldHeight)
   const maxScale = 10
   waterfallViewport.value.scale = Math.max(minScale, Math.min(waterfallViewport.value.scale, maxScale))
 }
@@ -1003,10 +1072,11 @@ function handleQuery() {
 
   const freqRatio = (freqStart - WORLD_FREQ_START) / (WORLD_FREQ_END - WORLD_FREQ_START)
   const freqEndRatio = (freqEnd - WORLD_FREQ_START) / (WORLD_FREQ_END - WORLD_FREQ_START)
-  
+
   waterfallViewport.value.x = freqRatio * worldWidth
   const viewWidth = (freqEndRatio - freqRatio) * worldWidth
-  waterfallViewport.value.scale = (waterfallViewport.value.width - 110) / Math.max(1, viewWidth)
+  const effectiveWidth = Math.max(100, waterfallViewport.value.width - 60 - 55)
+  waterfallViewport.value.scale = effectiveWidth / Math.max(1, viewWidth)
 
   tileCache.clear()
   drawSpectrum()
@@ -1033,7 +1103,8 @@ function resetView() {
 
   waterfallViewport.value.x = 0
   waterfallViewport.value.y = 0
-  waterfallViewport.value.scale = waterfallViewport.value.width / worldWidth
+  const effectiveWidth = Math.max(100, waterfallViewport.value.width - 60 - 55)
+  waterfallViewport.value.scale = effectiveWidth / worldWidth
 
   spectrumViewport.value = {
     freqStart: WORLD_FREQ_START,
@@ -1051,10 +1122,12 @@ function zoomIn() {
   if (currentLevel.value < MAX_LEVEL) {
     const canvas = waterfallCanvasRef.value
     const rect = canvas.getBoundingClientRect()
+    const paddingLeft = 60
+    const paddingTop = 8
     const centerX = rect.width / 2
     const centerY = rect.height / 2
     const worldPos = pixelToWorld(centerX, centerY)
-    changeLevel(currentLevel.value + 1, worldPos, centerX - 60, centerY)
+    changeLevel(currentLevel.value + 1, worldPos, centerX - paddingLeft, centerY - paddingTop)
   }
 }
 
@@ -1062,10 +1135,12 @@ function zoomOut() {
   if (currentLevel.value > MIN_LEVEL) {
     const canvas = waterfallCanvasRef.value
     const rect = canvas.getBoundingClientRect()
+    const paddingLeft = 60
+    const paddingTop = 8
     const centerX = rect.width / 2
     const centerY = rect.height / 2
     const worldPos = pixelToWorld(centerX, centerY)
-    changeLevel(currentLevel.value - 1, worldPos, centerX - 60, centerY)
+    changeLevel(currentLevel.value - 1, worldPos, centerX - paddingLeft, centerY - paddingTop)
   }
 }
 
@@ -1129,8 +1204,8 @@ function resizeCanvas() {
   }
 
   if (colorBarCanvas) {
-    const cbW = 20
-    const cbH = waterfallArea?.clientHeight || 200
+    const cbW = 18
+    const cbH = Math.max(50, (waterfallArea?.clientHeight || 200) - 8 - 30)
     if (cbH > 0) {
       colorBarCanvas.width = cbW * dpr
       colorBarCanvas.height = cbH * dpr
@@ -1145,7 +1220,10 @@ function resizeCanvas() {
     worldHeight = worldSize.height
   }
   if (waterfallViewport.value.width > 0 && worldWidth > 0) {
-    waterfallViewport.value.scale = waterfallViewport.value.width / worldWidth
+    const paddingLeft = 60
+    const paddingRight = 55
+    const effectiveWidth = Math.max(100, waterfallViewport.value.width - paddingLeft - paddingRight)
+    waterfallViewport.value.scale = effectiveWidth / worldWidth
   }
 
   drawSpectrum()
@@ -1234,17 +1312,18 @@ onUnmounted(() => {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 6px 12px;
   background: #0d1f35;
   border-bottom: 1px solid #1e4976;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
+  min-height: 40px;
 }
 
 .query-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .query-label {
@@ -1254,7 +1333,7 @@ onUnmounted(() => {
 }
 
 .query-input {
-  width: 100px;
+  width: 90px;
 }
 
 .query-separator {
@@ -1266,33 +1345,37 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 16px;
+  padding: 6px 12px;
   background: #0d1f35;
   border-bottom: 1px solid #1e4976;
-  gap: 12px;
+  gap: 10px;
+  min-height: 36px;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .level-info {
-  margin-left: 16px;
+  margin-left: 12px;
   font-family: monospace;
   color: #8ab4c7;
+  font-size: 12px;
 }
 
 .hover-info {
   font-family: monospace;
   color: #8ab4c7;
+  font-size: 12px;
 }
 
 .spectrum-area {
   position: relative;
-  flex: 0 0 38%;
-  min-height: 200px;
+  flex: 1 1 35%;
+  min-height: 160px;
+  max-height: 45%;
   background: #0a0a0a;
   border-bottom: 1px solid #1e4976;
 }
@@ -1306,8 +1389,8 @@ onUnmounted(() => {
 
 .waterfall-area {
   position: relative;
-  flex: 1;
-  min-height: 220px;
+  flex: 1 1 55%;
+  min-height: 180px;
   background: #0a0a0a;
   padding-right: 60px;
 }
@@ -1342,7 +1425,6 @@ onUnmounted(() => {
 
 .waterfall-box-selection {
   position: absolute;
-  left: 60px;
   border: 2px dashed #ff4d4d;
   background: rgba(255, 77, 77, 0.1);
   pointer-events: none;
@@ -1378,10 +1460,10 @@ onUnmounted(() => {
 
 .color-bar {
   position: absolute;
-  right: 10px;
-  top: 10px;
-  bottom: 35px;
-  width: 40px;
+  right: 8px;
+  top: 8px;
+  bottom: 30px;
+  width: 44px;
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -1389,12 +1471,12 @@ onUnmounted(() => {
   background: rgba(10, 22, 40, 0.9);
   border: 1px solid #1e4976;
   border-radius: 4px;
-  padding: 4px;
+  padding: 3px;
   box-sizing: border-box;
 }
 
 .color-bar-canvas {
-  flex: 0 0 18px;
+  flex: 0 0 16px;
   height: 100%;
   display: block;
 }
@@ -1404,13 +1486,13 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: space-between;
   height: 100%;
-  padding-left: 4px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 10px;
+  padding-left: 3px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 9px;
   color: #8ab4c7;
   font-family: monospace;
-  line-height: 1.2;
+  line-height: 1;
 }
 
 .color-bar-labels span {
