@@ -7,6 +7,9 @@
       <el-tab-pane label="历史频谱" name="history-spectrum">
         <HistorySpectrum />
       </el-tab-pane>
+      <el-tab-pane label="历史频谱(2)" name="history-spectrum-v2">
+        <HistorySpectrumV2 />
+      </el-tab-pane>
       <el-tab-pane label="电平监测" name="level">
         <LevelMonitor />
       </el-tab-pane>
@@ -18,6 +21,7 @@
 import { ref } from 'vue'
 import SpectrumMonitor from './components/SpectrumMonitor.vue'
 import HistorySpectrum from './components/HistorySpectrum.vue'
+import HistorySpectrumV2 from './components/HistorySpectrumV2.vue'
 import LevelMonitor from './components/LevelMonitor.vue'
 
 const activeTab = ref('realtime-spectrum')
