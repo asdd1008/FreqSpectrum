@@ -267,7 +267,17 @@ function drawSpectrum() {
   drawSpectrumGrid(ctx, width, height)
   drawSpectrumAxes(ctx, width, height)
 
-  const spectrumData = generateSpectrumData(width)
+  const plotWidth = width - 60
+  const plotHeight = height - 30
+  const plotX = 60
+  const plotY = 0
+
+  const spectrumData = generateSpectrumData(plotWidth)
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(plotX, plotY, plotWidth, plotHeight)
+  ctx.clip()
 
   ctx.strokeStyle = '#00ff66'
   ctx.lineWidth = 1.5
@@ -279,9 +289,9 @@ function drawSpectrum() {
   const levelRange = refLevel - minLevel
 
   for (let i = 0; i < spectrumData.length; i++) {
-    const x = i
+    const x = plotX + i
     const ratio = (refLevel - spectrumData[i]) / levelRange
-    const y = ratio * (height - 30)
+    const y = plotY + ratio * plotHeight
 
     if (i === 0) {
       ctx.moveTo(x, y)
@@ -295,34 +305,39 @@ function drawSpectrum() {
 
   ctx.fillStyle = 'rgba(0, 255, 100, 0.1)'
   ctx.beginPath()
-  ctx.moveTo(0, height)
+  ctx.moveTo(plotX, plotY + plotHeight)
   for (let i = 0; i < spectrumData.length; i++) {
-    const x = i
+    const x = plotX + i
     const ratio = (refLevel - spectrumData[i]) / levelRange
-    const y = ratio * (height - 30)
+    const y = plotY + ratio * plotHeight
     ctx.lineTo(x, y)
   }
-  ctx.lineTo(width, height)
+  ctx.lineTo(plotX + plotWidth, plotY + plotHeight)
   ctx.closePath()
   ctx.fill()
+
+  ctx.restore()
 }
 
 function drawSpectrumGrid(ctx, width, height) {
   ctx.strokeStyle = '#1a3a5c'
   ctx.lineWidth = 0.5
 
+  const plotWidth = width - 60
+  const plotHeight = height - 30
+
   for (let i = 0; i <= 10; i++) {
-    const x = (width / 10) * i
+    const x = 60 + (plotWidth / 10) * i
     ctx.beginPath()
     ctx.moveTo(x, 0)
-    ctx.lineTo(x, height - 30)
+    ctx.lineTo(x, plotHeight)
     ctx.stroke()
   }
 
   for (let i = 0; i <= 8; i++) {
-    const y = ((height - 30) / 8) * i
+    const y = (plotHeight / 8) * i
     ctx.beginPath()
-    ctx.moveTo(0, y)
+    ctx.moveTo(60, y)
     ctx.lineTo(width, y)
     ctx.stroke()
   }
@@ -333,27 +348,30 @@ function drawSpectrumAxes(ctx, width, height) {
   ctx.lineWidth = 1.5
   ctx.fillStyle = '#e0e0e0'
   ctx.font = '12px monospace'
-  ctx.textAlign = 'center'
+
+  const plotWidth = width - 60
+  const plotHeight = height - 30
 
   ctx.beginPath()
-  ctx.moveTo(0, height - 30)
-  ctx.lineTo(width, height - 30)
+  ctx.moveTo(60, plotHeight)
+  ctx.lineTo(width, plotHeight)
   ctx.stroke()
 
+  ctx.textAlign = 'center'
   for (let i = 0; i <= 10; i++) {
-    const x = (width / 10) * i
+    const x = 60 + (plotWidth / 10) * i
     const freq = spectrumViewport.value.freqStart + (spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart) * (i / 10)
     ctx.fillText((freq / 1e6).toFixed(0) + 'M', x, height - 8)
   }
 
   ctx.beginPath()
-  ctx.moveTo(0, 0)
-  ctx.lineTo(0, height - 30)
+  ctx.moveTo(60, 0)
+  ctx.lineTo(60, plotHeight)
   ctx.stroke()
 
   ctx.textAlign = 'right'
   for (let i = 0; i <= 8; i++) {
-    const y = ((height - 30) / 8) * i
+    const y = (plotHeight / 8) * i
     const level = spectrumViewport.value.refLevel - i * 12.5
     ctx.fillText(level.toFixed(0) + 'dBm', 55, y + 4)
   }
@@ -377,8 +395,10 @@ function onSpectrumMouseMove(e) {
   const rect = canvas.getBoundingClientRect()
   const x = e.clientX - rect.left
 
+  const plotX = 60
+  const plotWidth = rect.width - 60
   const freqRange = spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart
-  const freq = spectrumViewport.value.freqStart + (x / rect.width) * freqRange
+  const freq = spectrumViewport.value.freqStart + (Math.max(0, Math.min(plotWidth, x - plotX)) / plotWidth) * freqRange
 
   hoverInfo.value = { visible: true, freq, level: null }
   tooltip.value = { visible: true, x, y: e.clientY - rect.top, freq, level: null }
@@ -388,15 +408,15 @@ function onSpectrumMouseMove(e) {
 
     const minX = Math.min(boxSelection.value.startX, boxSelection.value.endX)
     const maxX = Math.max(boxSelection.value.startX, boxSelection.value.endX)
-    const startFreq = spectrumViewport.value.freqStart + (minX / rect.width) * freqRange
-    const endFreq = spectrumViewport.value.freqStart + (maxX / rect.width) * freqRange
+    const startFreq = spectrumViewport.value.freqStart + (Math.max(0, minX - plotX) / plotWidth) * freqRange
+    const endFreq = spectrumViewport.value.freqStart + (Math.max(0, maxX - plotX) / plotWidth) * freqRange
 
     boxSelectionInfo.value = {
       visible: true,
       freqStart: startFreq,
       freqEnd: endFreq,
       centerFreq: (startFreq + endFreq) / 2,
-      bandwidth: endFreq - startFreq
+      bandwidth: Math.abs(endFreq - startFreq)
     }
   }
 }
@@ -417,15 +437,32 @@ function onSpectrumWheel(e) {
   const rect = canvas.getBoundingClientRect()
   const x = e.clientX - rect.left
 
+  const plotX = 60
+  const plotWidth = rect.width - 60
+
   const zoomFactor = e.deltaY < 0 ? 0.8 : 1.2
   const freqRange = spectrumViewport.value.freqEnd - spectrumViewport.value.freqStart
-  const mouseFreq = spectrumViewport.value.freqStart + (x / rect.width) * freqRange
+  const mouseFreq = spectrumViewport.value.freqStart + (Math.max(0, Math.min(plotWidth, x - plotX)) / plotWidth) * freqRange
 
   const newRange = freqRange * zoomFactor
   const offsetRatio = (mouseFreq - spectrumViewport.value.freqStart) / freqRange
 
-  spectrumViewport.value.freqStart = mouseFreq - newRange * offsetRatio
-  spectrumViewport.value.freqEnd = mouseFreq + newRange * (1 - offsetRatio)
+  let newStart = mouseFreq - newRange * offsetRatio
+  let newEnd = mouseFreq + newRange * (1 - offsetRatio)
+
+  if (newStart < WORLD_FREQ_START) {
+    const diff = WORLD_FREQ_START - newStart
+    newStart += diff
+    newEnd += diff
+  }
+  if (newEnd > WORLD_FREQ_END) {
+    const diff = newEnd - WORLD_FREQ_END
+    newEnd -= diff
+    newStart -= diff
+  }
+
+  spectrumViewport.value.freqStart = Math.max(WORLD_FREQ_START, newStart)
+  spectrumViewport.value.freqEnd = Math.min(WORLD_FREQ_END, newEnd)
 
   drawSpectrum()
 }
@@ -735,7 +772,7 @@ function resizeCanvas() {
   if (spectrumArea && spectrumCanvas) {
     const dpr = window.devicePixelRatio || 1
     const sW = spectrumArea.clientWidth
-    const sH = Math.max(200, window.innerHeight * 0.35)
+    const sH = spectrumArea.clientHeight
     spectrumCanvas.width = sW * dpr
     spectrumCanvas.height = sH * dpr
     spectrumCanvas.style.width = sW + 'px'
@@ -745,7 +782,7 @@ function resizeCanvas() {
   if (waterfallArea && waterfallCanvas) {
     const dpr = window.devicePixelRatio || 1
     const wW = waterfallArea.clientWidth
-    const wH = Math.max(200, window.innerHeight * 0.5)
+    const wH = waterfallArea.clientHeight
     waterfallCanvas.width = wW * dpr
     waterfallCanvas.height = wH * dpr
     waterfallCanvas.style.width = wW + 'px'
@@ -755,11 +792,13 @@ function resizeCanvas() {
     waterfallViewport.height = wH
   }
 
-  if (worldWidth === 0) {
+  if (worldWidth === 0 || waterfallViewport.width === 0) {
     const worldSize = getWorldSize(currentLevel.value)
     worldWidth = worldSize.width
     worldHeight = worldSize.height
-    waterfallViewport.scale = waterfallViewport.width / worldWidth
+    if (waterfallViewport.width > 0) {
+      waterfallViewport.scale = waterfallViewport.width / worldWidth
+    }
   }
 
   drawSpectrum()
@@ -788,8 +827,11 @@ onMounted(async () => {
     sessionId = 'mock-session-' + Date.now()
   }
 
-  resizeCanvas()
-  window.addEventListener('resize', resizeCanvas)
+  // 等待 DOM 完全渲染后再初始化画布
+  setTimeout(() => {
+    resizeCanvas()
+    window.addEventListener('resize', resizeCanvas)
+  }, 100)
 })
 
 onUnmounted(() => {
@@ -806,9 +848,11 @@ onUnmounted(() => {
   flex-direction: column;
   background: #0a1628;
   color: #e0e0e0;
+  overflow: hidden;
 }
 
 .toolbar {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
